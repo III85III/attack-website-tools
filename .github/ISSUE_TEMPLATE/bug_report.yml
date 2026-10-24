@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible problem in Sentinel
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use private reporting for vulnerabilities in Sentinel.
+        Never include credentials, customer data or unauthorized target details.
+  - type: input
+    id: version
+    attributes:
+      label: Sentinel version
+      placeholder: "0.19.0"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version and architecture
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Prefer a disposable local fixture with sanitized evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and observed behavior
+    validations:
+      required: true
