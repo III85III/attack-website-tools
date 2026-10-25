@@ -1,6 +1,6 @@
 # Security policy
 
-The currently maintained release candidate is **0.19.0**. Releases are unsigned; verify the published SHA-256 checksums.
+The currently maintained release candidate is **0.19.1**. Releases are unsigned; verify the published SHA-256 checksums.
 
 ## Report a vulnerability in Sentinel
 

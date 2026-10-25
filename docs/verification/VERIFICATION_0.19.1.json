@@ -1,0 +1,13 @@
+{
+  "version": "0.19.1",
+  "source_suite": "270 passed",
+  "loopback_only": true,
+  "website_recorded_equals_observed": 31,
+  "application_map_verified": true,
+  "structured_source_map_verified": true,
+  "token_redaction_verified": true,
+  "api_arithmetic_candidate_verified": true,
+  "word_generated_and_reopened": true,
+  "word_visual_review": false,
+  "json_and_database_verified": true
+}

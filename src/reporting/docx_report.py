@@ -1,6 +1,7 @@
 """Generate clear Persian security reports from saved Sentinel evidence."""
 from __future__ import annotations
 
+import html
 import json
 import re
 from datetime import datetime, timezone
@@ -650,4 +651,488 @@ class JSONExporter:
         out_path = self.output_dir / filename
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(sanitize_data(data), f, ensure_ascii=False, indent=2)
+        return out_path
+
+
+class MarkdownExporter:
+    """Exports assessment findings as a structured, bug-bounty ready Markdown report."""
+
+    def __init__(self, output_dir: Optional[Path] = None):
+        self.output_dir = output_dir or REPORTS_DIR
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def export_markdown(
+        self,
+        scan_run: Optional[ScanRun],
+        findings: List[Finding],
+        tools_health: List[ToolHealthInfo],
+        target_name: str = "",
+        report_title: str = "Security Assessment Report",
+    ) -> Path:
+        scan_run = ScanRun.from_dict(sanitize_data(scan_run.to_dict())) if scan_run else None
+        findings = [Finding.from_dict(sanitize_data(finding.to_dict())) for finding in findings]
+        target = sanitize_text(target_name) or (scan_run.target if scan_run else "Target Not Specified")
+        generated_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
+
+        counts = {sev: 0 for sev in _SEVERITY_ORDER}
+        for f in findings:
+            sev = _value(f.severity).upper()
+            if sev in counts:
+                counts[sev] += 1
+
+        ordered = sorted(
+            findings,
+            key=lambda item: (_SEVERITY_ORDER.get(_value(item.severity).upper(), 9), item.title.casefold()),
+        )
+
+        lines = [
+            f"# 🛡️ {report_title}",
+            "",
+            "> **Platform**: III85III QOLAM SENTINEL — Professional Security Assessment System  ",
+            f"> **Target**: `{target}`  ",
+            f"> **Generated**: {generated_at}  ",
+            f"> **Assessment ID**: `{scan_run.id if scan_run else 'N/A'}`",
+            "",
+            "---",
+            "",
+            "## 📊 Executive Summary",
+            "",
+            "| Critical | High | Medium | Low | Info | Total Findings |",
+            "|:---:|:---:|:---:|:---:|:---:|:---:|",
+            f"| 🔴 **{counts['CRITICAL']}** | 🟠 **{counts['HIGH']}** | 🟡 **{counts['MEDIUM']}** | 🔵 **{counts['LOW']}** | ⚪ **{counts['INFO']}** | **{len(findings)}** |",
+            "",
+        ]
+
+        if scan_run:
+            lines.extend([
+                "### Scan Metadata",
+                f"- **Engine**: `{scan_run.tool_name}`",
+                f"- **Duration**: `{scan_run.duration_ms} ms`",
+                f"- **HTTP Requests**: `{scan_run.request_count}`",
+                f"- **Initial Status**: `{scan_run.response_status or 'N/A'}`",
+                f"- **Scan State**: `{scan_run.status}`",
+                f"- **Reason/Limitation**: {scan_run.completion_reason or scan_run.error_message or 'Completed normally.'}",
+                "",
+            ])
+
+        lines.extend([
+            "---",
+            "",
+            "## 📋 Findings Index",
+            "",
+            "| # | Severity | Status | Title | Target / Component |",
+            "|---|---|---|---|---|",
+        ])
+
+        sev_badges = {
+            "CRITICAL": "🔴 Critical",
+            "HIGH": "🟠 High",
+            "MEDIUM": "🟡 Medium",
+            "LOW": "🔵 Low",
+            "INFO": "⚪ Info",
+        }
+
+        for idx, f in enumerate(ordered, 1):
+            sev_str = _value(f.severity).upper()
+            badge = sev_badges.get(sev_str, sev_str)
+            comp = f.affected_component or f.target or "-"
+            lines.append(f"| {idx} | {badge} | `{_value(f.status)}` | {f.title} | `{comp[:40]}` |")
+
+        lines.extend(["", "---", "", "## 🔍 Detailed Findings", ""])
+
+        for idx, f in enumerate(ordered, 1):
+            sev_str = _value(f.severity).upper()
+            badge = sev_badges.get(sev_str, sev_str)
+            comp = f.affected_component or f.target or "Not specified"
+            std_id = " | ".join(i for i in (f.cve_id, f.cwe_id) if i) or "None"
+            ev = _safe_evidence(f)
+
+            lines.extend([
+                f"### {idx}. {f.title}",
+                "",
+                f"- **Severity**: {badge}",
+                f"- **Status**: `{_value(f.status)}`",
+                f"- **Confidence**: `{_value(f.confidence)}` ({f.confidence_justification or 'Source reported'})",
+                f"- **Component / Target**: `{comp}`",
+                f"- **Standard ID**: `{std_id}`",
+                f"- **Source Tool**: `{f.source_tool} {f.tool_version or ''}`",
+                "",
+                "#### Description",
+                f"{f.description or 'No technical description available.'}",
+                "",
+                "#### Evidence & Technical Artifacts",
+                "```json" if ev.startswith("{") or ev.startswith("[") else "```text",
+                f"{ev}",
+                "```",
+                "",
+                "#### Remediation Guidance",
+                f"{f.remediation or 'Review affected component and implement secure coding best practices.'}",
+                "",
+                "---",
+                "",
+            ])
+
+        lines.extend([
+            "## ⚙️ Methodology & Limitations",
+            "",
+            "- **Defensive & Evidence-Based**: Qolam Sentinel only reports verified or source-documented telemetry without executing destructive exploitation.",
+            "- **Passive Subdomain Intelligence**: Certificate transparency data is harvested passively via public logs; active authorization is strictly required before assessing secondary assets.",
+            "- **Authentication & Business Logic**: Automated scanning does not replace comprehensive manual authorization and application workflow reviews.",
+            "",
+        ])
+
+        filename = f"Sentinel_Report_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.md"
+        out_path = self.output_dir / filename
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+        return out_path
+
+
+class HTMLExporter:
+    """Exports findings as a responsive, self-contained, interactive cybersecurity dashboard."""
+
+    def __init__(self, output_dir: Optional[Path] = None):
+        self.output_dir = output_dir or REPORTS_DIR
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def export_html(
+        self,
+        scan_run: Optional[ScanRun],
+        findings: List[Finding],
+        tools_health: List[ToolHealthInfo],
+        target_name: str = "",
+        report_title: str = "Security Assessment Report",
+    ) -> Path:
+        scan_run = ScanRun.from_dict(sanitize_data(scan_run.to_dict())) if scan_run else None
+        findings = [Finding.from_dict(sanitize_data(finding.to_dict())) for finding in findings]
+        target = sanitize_text(target_name) or (scan_run.target if scan_run else "Target Not Specified")
+        generated_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
+
+        counts = {sev: 0 for sev in _SEVERITY_ORDER}
+        for f in findings:
+            sev = _value(f.severity).upper()
+            if sev in counts:
+                counts[sev] += 1
+
+        ordered = sorted(
+            findings,
+            key=lambda item: (_SEVERITY_ORDER.get(_value(item.severity).upper(), 9), item.title.casefold()),
+        )
+
+        cards_html = []
+        for idx, f in enumerate(ordered, 1):
+            sev = _value(f.severity).upper()
+            title = html.escape(f.title)
+            desc = html.escape(f.description or "No description provided.")
+            remed = html.escape(f.remediation or "No remediation provided.")
+            comp = html.escape(f.affected_component or f.target or "-")
+            status = html.escape(_value(f.status))
+            conf = html.escape(_value(f.confidence))
+            std_id = html.escape(" | ".join(i for i in (f.cve_id, f.cwe_id) if i) or "None")
+            tool = html.escape(f"{f.source_tool} {f.tool_version or ''}".strip())
+            ev = html.escape(_safe_evidence(f))
+
+            cards_html.append(f"""
+            <div class="finding-card" data-severity="{sev}">
+                <div class="card-header">
+                    <span class="badge badge-{sev.lower()}">{sev}</span>
+                    <span class="finding-id">#{idx}</span>
+                    <h3 class="finding-title">{title}</h3>
+                </div>
+                <div class="meta-grid">
+                    <div class="meta-item"><span class="meta-lbl">Target / Component:</span> <code>{comp}</code></div>
+                    <div class="meta-item"><span class="meta-lbl">Status:</span> <span class="status-pill">{status}</span></div>
+                    <div class="meta-item"><span class="meta-lbl">Confidence:</span> <span>{conf}</span></div>
+                    <div class="meta-item"><span class="meta-lbl">Classification:</span> <span>{std_id}</span></div>
+                    <div class="meta-item"><span class="meta-lbl">Engine:</span> <span>{tool}</span></div>
+                </div>
+                <div class="section-title">Description</div>
+                <p class="finding-desc">{desc}</p>
+                <details class="evidence-box">
+                    <summary>View Technical Evidence & Telemetry</summary>
+                    <pre><code>{ev}</code></pre>
+                </details>
+                <div class="section-title">Remediation Recommendation</div>
+                <p class="finding-remed">{remed}</p>
+            </div>
+            """)
+
+        full_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(report_title)} - III85III Sentinel</title>
+<style>
+    :root {{
+        --bg: #090d16;
+        --card-bg: #111827;
+        --border: #1f293d;
+        --text: #f3f4f6;
+        --text-muted: #9ca3af;
+        --cyan: #00f0ff;
+        --blue: #3b82f6;
+        --crit: #ef4444;
+        --high: #f97316;
+        --med: #eab308;
+        --low: #10b981;
+        --info: #64748b;
+    }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        padding: 30px 20px;
+        line-height: 1.6;
+    }}
+    .container {{ max-width: 1200px; margin: 0 auto; }}
+    header {{
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 24px;
+        margin-bottom: 30px;
+    }}
+    .brand {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 15px;
+    }}
+    h1 {{
+        font-size: 26px;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }}
+    h1 span {{ color: var(--cyan); }}
+    .meta-bar {{
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+        color: var(--text-muted);
+        font-size: 14px;
+        margin-top: 12px;
+    }}
+    .meta-bar b {{ color: #e5e7eb; }}
+    .stats-grid {{
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 16px;
+        margin-bottom: 30px;
+    }}
+    .stat-card {{
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+    }}
+    .stat-num {{ font-size: 28px; font-weight: 700; margin-bottom: 4px; }}
+    .stat-lbl {{ font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }}
+    .num-crit {{ color: var(--crit); }}
+    .num-high {{ color: var(--high); }}
+    .num-med {{ color: var(--med); }}
+    .num-low {{ color: var(--low); }}
+    .num-info {{ color: var(--info); }}
+    .num-total {{ color: var(--cyan); }}
+    .controls {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 24px;
+    }}
+    .filter-tabs {{
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }}
+    .filter-btn {{
+        background: #1e293b;
+        color: #e2e8f0;
+        border: 1px solid var(--border);
+        padding: 7px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        transition: all 0.2s;
+    }}
+    .filter-btn:hover, .filter-btn.active {{
+        background: var(--cyan);
+        color: #04101e;
+        border-color: var(--cyan);
+    }}
+    .search-input {{
+        background: #1e293b;
+        border: 1px solid var(--border);
+        color: #fff;
+        padding: 8px 14px;
+        border-radius: 6px;
+        font-size: 14px;
+        min-width: 260px;
+    }}
+    .search-input:focus {{ outline: none; border-color: var(--cyan); }}
+    .finding-card {{
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 22px;
+        margin-bottom: 20px;
+        transition: transform 0.15s, border-color 0.15s;
+    }}
+    .finding-card:hover {{ border-color: #334155; }}
+    .card-header {{
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+    }}
+    .finding-id {{ color: var(--text-muted); font-size: 14px; font-weight: 600; }}
+    .finding-title {{ font-size: 18px; color: #fff; flex: 1; }}
+    .badge {{
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+    }}
+    .badge-critical {{ background: rgba(239, 68, 68, 0.15); color: var(--crit); border: 1px solid var(--crit); }}
+    .badge-high {{ background: rgba(249, 115, 22, 0.15); color: var(--high); border: 1px solid var(--high); }}
+    .badge-medium {{ background: rgba(234, 179, 8, 0.15); color: var(--med); border: 1px solid var(--med); }}
+    .badge-low {{ background: rgba(16, 185, 129, 0.15); color: var(--low); border: 1px solid var(--low); }}
+    .badge-info {{ background: rgba(100, 116, 139, 0.15); color: var(--info); border: 1px solid var(--info); }}
+    .meta-grid {{
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 10px;
+        background: #0d1320;
+        padding: 12px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        margin-bottom: 16px;
+    }}
+    .meta-lbl {{ color: var(--text-muted); font-weight: 500; margin-right: 6px; }}
+    code {{ background: #1e293b; padding: 2px 6px; border-radius: 4px; color: var(--cyan); font-family: monospace; }}
+    .status-pill {{ color: #cbd5e1; font-weight: 500; }}
+    .section-title {{
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        margin: 14px 0 6px 0;
+        font-weight: 600;
+    }}
+    .finding-desc, .finding-remed {{ font-size: 14px; color: #cbd5e1; }}
+    .evidence-box {{
+        margin: 14px 0;
+        background: #080c14;
+        border: 1px solid #1e293b;
+        border-radius: 6px;
+    }}
+    .evidence-box summary {{
+        padding: 10px 14px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--cyan);
+        user-select: none;
+    }}
+    .evidence-box pre {{
+        padding: 14px;
+        overflow-x: auto;
+        color: #94a3b8;
+        font-size: 12px;
+        border-top: 1px solid #1e293b;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }}
+    footer {{
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 13px;
+    }}
+</style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <div class="brand">
+            <h1>🛡️ III85III <span>SENTINEL</span></h1>
+            <div style="font-size: 14px; color: var(--cyan);">Evidence-Based Security Assessment</div>
+        </div>
+        <div class="meta-bar">
+            <div>Target: <b>{html.escape(target)}</b></div>
+            <div>Generated: <b>{generated_at}</b></div>
+            <div>Assessment ID: <b>{scan_run.id if scan_run else 'N/A'}</b></div>
+            <div>Total Findings: <b>{len(findings)}</b></div>
+        </div>
+    </header>
+
+    <div class="stats-grid">
+        <div class="stat-card"><div class="stat-num num-crit">{counts['CRITICAL']}</div><div class="stat-lbl">Critical</div></div>
+        <div class="stat-card"><div class="stat-num num-high">{counts['HIGH']}</div><div class="stat-lbl">High</div></div>
+        <div class="stat-card"><div class="stat-num num-med">{counts['MEDIUM']}</div><div class="stat-lbl">Medium</div></div>
+        <div class="stat-card"><div class="stat-num num-low">{counts['LOW']}</div><div class="stat-lbl">Low</div></div>
+        <div class="stat-card"><div class="stat-num num-info">{counts['INFO']}</div><div class="stat-lbl">Info</div></div>
+        <div class="stat-card"><div class="stat-num num-total">{len(findings)}</div><div class="stat-lbl">Total</div></div>
+    </div>
+
+    <div class="controls">
+        <div class="filter-tabs">
+            <button class="filter-btn active" onclick="filterSev('ALL')">All ({len(findings)})</button>
+            <button class="filter-btn" onclick="filterSev('CRITICAL')">Critical ({counts['CRITICAL']})</button>
+            <button class="filter-btn" onclick="filterSev('HIGH')">High ({counts['HIGH']})</button>
+            <button class="filter-btn" onclick="filterSev('MEDIUM')">Medium ({counts['MEDIUM']})</button>
+            <button class="filter-btn" onclick="filterSev('LOW')">Low ({counts['LOW']})</button>
+            <button class="filter-btn" onclick="filterSev('INFO')">Info ({counts['INFO']})</button>
+        </div>
+        <input type="text" id="searchBox" class="search-input" placeholder="Search findings..." onkeyup="searchFindings()">
+    </div>
+
+    <div id="findingsContainer">
+        {''.join(cards_html) if cards_html else '<div style="text-align:center; padding:40px; color:var(--text-muted);">No findings recorded for this assessment.</div>'}
+    </div>
+
+    <footer>
+        III85III QOLAM SENTINEL &bull; Confirmed and source-reported findings &bull; Redacted telemetry
+    </footer>
+</div>
+<script>
+    let currentSev = 'ALL';
+    function filterSev(sev) {{
+        currentSev = sev;
+        document.querySelectorAll('.filter-btn').forEach(btn => {{
+            btn.classList.toggle('active', btn.textContent.toUpperCase().startsWith(sev));
+        }});
+        applyFilters();
+    }}
+    function searchFindings() {{
+        applyFilters();
+    }}
+    function applyFilters() {{
+        const q = (document.getElementById('searchBox').value || '').toLowerCase();
+        document.querySelectorAll('.finding-card').forEach(card => {{
+            const cardSev = card.getAttribute('data-severity');
+            const cardText = card.textContent.toLowerCase();
+            const matchesSev = (currentSev === 'ALL' || cardSev === currentSev);
+            const matchesQuery = (!q || cardText.includes(q));
+            card.style.display = (matchesSev && matchesQuery) ? '' : 'none';
+        }});
+    }}
+</script>
+</body>
+</html>
+"""
+        filename = f"Sentinel_Report_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.html"
+        out_path = self.output_dir / filename
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(full_html)
         return out_path

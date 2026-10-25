@@ -88,6 +88,7 @@ class SessionReviewAdapter:
     def _get(self, session, url, markers):
         time.sleep(0.15)
         self.request_count += 1
+        session.cookies.clear()  # A response cookie must not promote/change a test identity.
         try:
             with session.get(url, allow_redirects=False, verify=True, stream=True, timeout=(3, 8)) as response:
                 content = bytearray()
@@ -121,15 +122,20 @@ class SessionReviewAdapter:
                     header = "Cookie" if profile["mode"] == "cookie" else "Authorization"
                     session.headers[header] = profile["secret"] if header == "Cookie" else "Bearer " + profile["secret"]
                 sessions[identity] = session
+            identity_markers = {identity: config[identity]["marker"] for identity in ("primary", "secondary") if config.get(identity)}
+            anonymous_canary = self._get(sessions["anonymous"], config["canary"], identity_markers)
             valid_sessions = {}
             for identity in ("primary", "secondary"):
                 if identity not in sessions:
                     continue
-                observation = self._get(sessions[identity], config["canary"], {"expected": config[identity]["marker"]})
+                observation = self._get(sessions[identity], config["canary"], {"expected": config[identity]["marker"], **{other: marker for other, marker in identity_markers.items() if other != identity}})
                 if identity == "primary":
                     scan.response_status = observation["http_status"]
                 valid_sessions[identity] = (observation["http_status"] is not None and 200 <= observation["http_status"] < 300
-                                            and not observation["body_limit_reached"] and observation["matches"].get("expected", False))
+                                            and not observation["body_limit_reached"] and observation["matches"].get("expected", False)
+                                            and anonymous_canary["http_status"] is not None and not anonymous_canary["body_limit_reached"]
+                                            and not anonymous_canary["matches"].get(identity, False)
+                                            and not any(observation["matches"].get(other, False) for other in identity_markers if other != identity))
                 checks.append({"check": "Session canary", "identity": identity, "url": sanitize_text(config["canary"]),
                                "outcome": "PASS" if valid_sessions[identity] else "INCONCLUSIVE", **observation})
             if valid_sessions.get("primary"):
@@ -165,6 +171,20 @@ class SessionReviewAdapter:
                             outcome = "PASS"
                         else:
                             outcome = "INCONCLUSIVE"
+                        if outcome == "FAIL":
+                            repeated = self._get(sessions[identity], case["url"], {"expected": case["marker"]})
+                            stable = (repeated["http_status"] is not None and 200 <= repeated["http_status"] < 300
+                                      and repeated["matches"].get("expected", False) and not repeated["body_limit_reached"])
+                            value["repeat_marker_matched"] = stable
+                            value["repeat_body_sha256"] = repeated.get("body_sha256")
+                            if identity == "secondary":
+                                canary = self._get(sessions[identity], config["canary"], identity_markers)
+                                stable = stable and (canary["http_status"] is not None and 200 <= canary["http_status"] < 300
+                                    and not canary["body_limit_reached"] and canary["matches"].get(identity, False)
+                                    and not any(canary["matches"].get(other, False) for other in identity_markers if other != identity))
+                                value["identity_revalidated"] = bool(stable)
+                            if not stable:
+                                outcome = "INCONCLUSIVE"
                         checks.append({"check": "Declared access policy", "identity": identity, "url": sanitize_text(case["url"]),
                                        "expected_allowed": allowed, "outcome": outcome, **value})
                         if outcome == "FAIL":
@@ -199,7 +219,12 @@ class SessionReviewAdapter:
     def _finding(self, scan, case, title, identity, observation, business=False):
         safe = {"identity": identity, "url": sanitize_text(case["url"]), "observation": observation,
                 "expected_allowed": False, "content_marker_sha256": hashlib.sha256(case["marker"].encode()).hexdigest(),
-                "raw_response": "not retained", "credentials": "not retained"}
+                "raw_response": "not retained", "credentials": "not retained",
+                "preconditions": "Assessor-declared synthetic accounts, read-only resource and expected-denied identity.",
+                "expected": "The declared denied identity cannot observe the supplied protected marker.",
+                "observed": "Protected content marker reproduced in two independent successful requests." if not business else "The declared forbidden content marker was observed.",
+                "reproduction_steps": ["Validate each test-account marker against the canary and anonymous control.", "Repeat GET on the explicit resource under primary and expected-denied identities.", "Inspect role assignment and synthetic-object ownership before assigning exploit impact."],
+                "limitations": "No ID enumeration, account creation, login attempt or state-changing workflow was performed."}
         return Finding(scan_id=scan.id, title=title, description=(
             "A supplied content assertion failed. Review the application rule and reproduce manually; this does not establish exploit impact."
             if business else "A known content marker was visible under an identity declared denied by the assessor, while the primary account baseline matched. Verify role assignment, resource ownership and impact."),

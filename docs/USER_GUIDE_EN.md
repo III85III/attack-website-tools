@@ -1,32 +1,9 @@
-# ATTACK WEBSITE TOOLS — User Guide
+# Qolam_Hacker — User Guide
+
+For a ready-to-run Windows installation, download the **Windows-x64 ZIP** from [release 0.19.1](https://github.com/III85III/attack-website-tools/releases/tag/v0.19.1), extract it completely and open `Qolam_Sentinel.exe`. Keep `_internal` beside the EXE. You do not need Python. The [README](../README.md) includes checksum verification and source/build commands.
 
 
-ATTACK WEBSITE TOOLS is a Windows desktop app for authorized web penetration testing. Version 0.19.0 still displays the previous Sentinel branding inside the executable. The steps below refer to the labels you will see in that build.
-
-## Install and open
-
-1. Open the [0.19.0 release](https://github.com/III85III/attack-website-tools/releases/tag/v0.19.0) and download the Windows-x64 ZIP. GitHub's automatic source-code ZIP is not the Windows application.
-2. Extract the complete ZIP into a normal writable folder. Do not run the app from inside the archive.
-3. Open `Qolam_Sentinel.exe` in the extracted folder. Keep `_internal` and the other packaged files together. Python is not required.
-4. Read the first-launch notice. Before scanning, agree the target URL, testing window and permitted techniques with its owner.
-
-Use Windows x64. Install Microsoft Edge or Google Chrome normally if you want browser confirmation. Optional external tools are described below; missing tools are shown as unavailable rather than silently counted as completed checks.
-
-### Check the downloaded ZIP
-
-Download `SHA256SUMS_0.19.0.txt` from the same release. In PowerShell, run this in your download folder:
-
-```powershell
-Get-FileHash .\III85III_MIRAGE_SENTINEL_0.19.0_Windows-x64.zip -Algorithm SHA256
-```
-
-Compare the entire hash with the matching ZIP entry in the checksum file. A match checks file integrity; it is not a code-signing certificate. This release is unsigned. If Windows blocks the app, review the download and your organization's policy rather than disabling security software.
-
-## A useful first assessment
-
-Start with the exact authorized HTTPS URL. The app stays within the entered origin and does not follow redirects to a different destination. If you intend to test a login-protected feature, configure an authorized test session and explicit access expectations before scanning. A public landing-page scan does not assess the full logged-in application.
-
-The progress panel shows actual requests and errors. When it finishes, review the completion status before the severity counts. PARTIAL or FAILED means coverage was limited. Open findings to inspect evidence; an imported or potential finding is not automatically a confirmed vulnerability.
+Version 0.19.1 uses one primary **Scan Website** button. Optional supplied-account and OpenAPI setup is in the Scan button's right-click menu. Automatic discovery cannot infer credentials, object ownership or business rules; configure those explicitly when needed.
 
 ## Scan a website
 
@@ -40,7 +17,7 @@ Active scans can affect the target. Use the scanner only within your written aut
 
 ## Documented API assessment
 
-Enter the authorized target URL and choose **Assessment setup > Import OpenAPI / Swagger JSON**. JSON definitions up to 2 MB are supported for OpenAPI 3.0/3.1 and Swagger 2.0. Sentinel uses the first declared server only when it matches the exact target origin; unresolved references are never downloaded. Definition examples, tokens and default values are not submitted or persisted. Re-import after changing the target origin. Clear API definition removes the setup without deleting reports.
+Enter the authorized target URL and choose **Scan Website (right-click) > Import OpenAPI / Swagger JSON**. JSON definitions up to 2 MB are supported for OpenAPI 3.0/3.1 and Swagger 2.0. Sentinel uses the first declared server only when it matches the exact target origin; unresolved references are never downloaded. Definition examples, tokens and default values are not submitted or persisted. Re-import after changing the target origin. Clear API definition removes the setup without deleting reports.
 
 At scan confirmation, verify that the documented GET routes are read-only. Up to 20 concrete GET operations are requested with synthetic query values; the existing query checks cover up to ten parameters and browser verification up to three candidates within this API engine. These are separate from the website engine's counts and three-candidate budget. Each API request drops cookies received by previous responses. API sessions are anonymous and supplied account sessions are not forwarded. Operation/path server overrides, parameter references, path templates, credential-like query parameters, known state-changing route names, unsupported methods and routes beyond the limit stay NOT_TESTED with a reason.
 
@@ -54,7 +31,6 @@ COLLECTED means the response was received successfully, not that the operation i
 - **Nmap:** install separately and ensure `nmap` is available on `PATH`.
 - **TShark:** install Wireshark to inspect additional capture formats.
 - **Other security CLIs:** the Tool Integrations page reports which supported tools are detected. Sentinel does not launch these tools automatically. Import compatible SARIF, Nuclei JSON/JSONL, JSON, or XML reports from the Findings page.
-- **Source archives:** a detected ZIP is listed as **Archive Found**, not as an installed engine. Archives are never extracted or executed automatically. Install optional applications from their official sources and import compatible results. Credential-attack tools are not launched by the app.
 - **Direct actions:** use **Import Tool Report** on Tool Integrations to import supported SARIF, Nuclei JSON/JSONL, JSON, or Nmap-compatible XML files. Select an archive row and choose **Open Selected Archive Folder** to open its local folder.
 
 ## Findings and reports
@@ -93,7 +69,7 @@ Read the responsible-use notice and tick its acknowledgement before continuing. 
 
 ## Sessions and access expectations
 
-1. Enter the authorized target URL, then choose Assessment setup > Test sessions / access rules.
+1. Enter the authorized target URL, then choose Scan Website (right-click) > Test sessions / access rules.
 2. Paste a Cookie request-header value or Bearer token for your test account. Use an existing authorized session; do not paste passwords. Sessions remain in app memory until cleared or exit.
 3. Enter a read-only account-identifying path and unique non-secret text from that page. Supply distinct account text and a separate session for the optional second account. HTTP 200 by itself does not establish a valid session.
 4. Add explicit read-only paths or GET API URLs. Give a unique marker proving the primary account sees the expected content. Tick Anonymous allowed or Second account allowed only when that identity should see this content. An unchecked box declares expected denial.
@@ -103,27 +79,3 @@ Read the responsible-use notice and tick its acknowledgement before continuing. 
 8. Clear session setup when finished. No raw Cookie/Bearer value, identifying text or response body is written to the report. Session credentials are never forwarded to optional external engines.
 
 The dedicated release diagnostic is loopback-only and uses synthetic local plan files for QA; it is separate from the public-website GUI workflow.
-
-## Read and share a report
-
-Export Word for a readable assessment document or JSON for structured evidence. Reports belong to one selected assessment, including its optional engine results; check the target and assessment timestamp before sending them.
-
-Review severity together with validation status. A Critical or High label describes the reported risk; it does not replace evidence. Validate the affected URL, parameter, observed behavior and impact before presenting a candidate as confirmed. Review remediation and retest after a fix. Zero findings means no finding was recorded within the completed checks, not that every vulnerability was ruled out.
-
-Before sharing, inspect URLs, query values, screenshots, response excerpts and imported evidence for confidential details. Session values supplied through the dedicated setup stay in memory, but files you import may already contain secrets. Do not upload customer reports, cookies, tokens or API keys to this project's public issues.
-
-## Troubleshooting
-
-| What you see | What to do |
-|---|---|
-| The EXE is hard to find | Download the Windows-x64 asset, extract it, then open `Qolam_Sentinel.exe`. The GitHub source archive does not contain a ready-to-run app. |
-| Missing DLL or `_internal` error | Extract the complete package again into a new folder. Keep all runtime files beside the EXE; do not copy the EXE alone. |
-| Browser confirmation unavailable | Install a signed system Edge or Chrome. Review the engine's error before treating a finding as validated. |
-| Redirect or 401/403 | Confirm the intended authorized URL and test-session setup. Redirects and access-limited responses leave incomplete coverage. |
-| No findings | Check completion status, coverage and session expectations. Some vulnerability classes and business workflows need manual assessment. |
-| ZAP or Nmap unavailable | Confirm that the optional tool is installed and configured as described above. Its absence does not mean its checks passed. |
-| Export or import fails | Read the inline error, check the destination is writable and finish active work before closing. Keep private reports out of public bug attachments. |
-
-## Get support
-
-For an app problem, [open a bug report](https://github.com/III85III/attack-website-tools/issues/new/choose) with the version, Windows version, expected behavior and redacted reproduction steps. Use a synthetic example or a loopback test case when possible. For a vulnerability in the app itself, use [private vulnerability reporting](https://github.com/III85III/attack-website-tools/security/advisories/new).

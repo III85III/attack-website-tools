@@ -41,7 +41,7 @@ class SystemGuardMonitor:
         """Collect current system metrics; Defender may involve a slow WMI query."""
         cpu = psutil.cpu_percent(interval=None)
         mem = psutil.virtual_memory()
-        disk = psutil.disk_usage(Path.home().anchor or "/")
+        disk = psutil.disk_usage("C:\\")
 
         # Keep the overview fast; Defender status can require a slow PowerShell/WMI call.
         defender_stat = self.defender.get_status() if include_defender else {}

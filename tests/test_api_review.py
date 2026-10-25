@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from src.adapters.api_review import APIReviewAdapter, build_plan, import_spec_file, validate_api_plan
+from src.adapters.api_review import APIReviewAdapter, build_plan, discover_spec_url, import_spec_file, validate_api_plan
 from src.core.models import ScanRun, FindingStatus, ToolHealthInfo
 from test_browser_xss import local_target
 
@@ -27,7 +27,7 @@ def test_schema_supplies_real_unlinked_xss_input(local_target, tmp_path):
     document = specification({"/attribute": specification()["paths"]["/reflect"], "/items/{id}": {"get": {}}, "/write": {"post": {}}})
     config = plan(target, document)
     scan, findings = run(target, config)
-    assert scan.status == "PARTIAL" and scan.request_count == 3
+    assert scan.status == "PARTIAL" and scan.request_count == 6
     assert len(findings) == 1 and findings[0].status == FindingStatus.VALIDATED
     coverage = scan.execution_log[0]
     assert coverage["browser_request_count"] == 1
@@ -94,7 +94,7 @@ def test_each_api_get_and_probe_drops_previous_response_cookies(local_target):
     target, observed = local_target
     document = specification({"/give-cookie": {"get": {}}, "/escaped": specification()["paths"]["/reflect"]})
     scan, _ = run(target, plan(target, document))
-    assert scan.request_count == len(observed) == 4
+    assert scan.request_count == len(observed) == 7
     assert all(cookie is None for _, _, cookie in observed)
 
 
@@ -140,9 +140,9 @@ def test_local_api_diagnostic_exports_actual_word(local_target, tmp_path):
     assert _verify_local_api(target, str(source), str(output)) == 0
     value = json.loads(output.read_text())
     assert value["word_export_verified"] and value["export_verified"] and value["persistence_verified"]
-    assert value["scan"]["request_count"] == len(observed) == 3
+    assert value["scan"]["request_count"] == len(observed) == 6
     assert _verify_local_api("https://outside.invalid", str(source), str(output)) == 1
-    assert len(observed) == 3
+    assert len(observed) == 6
 
 
 def test_operation_limit_is_reported_without_silent_truncation(local_target, monkeypatch):
@@ -171,7 +171,7 @@ def test_worker_links_api_child_and_exports_its_coverage(local_target, tmp_path,
     worker.run()
     assert results[0][0].status == "COMPLETED" and worker.api_plan is None
     children = [item for item in database.list_scans() if item.parent_scan_id == results[0][0].id]
-    assert len(children) == 1 and children[0].request_count == 3
+    assert len(children) == 1 and children[0].request_count == 6
     payload = json.loads(export_assessment(database, results[0][0].id, "json", tmp_path).read_text())
     assert any(item.get("operation") == "API coverage" for item in payload["scan"]["execution_log"])
     widget = WebSecurityTab()
@@ -211,3 +211,26 @@ def test_reference_only_path_remains_visible_without_fetching(local_target):
     assert scan.status == "PARTIAL" and scan.request_count == 0 and not findings and not observed
     assert len(scan.execution_log[0]["checks"]) == 2
     assert all(item["method"] == "REFERENCE" and item["outcome"] == "NOT_TESTED" for item in scan.execution_log[0]["checks"])
+
+
+def test_discover_spec_url():
+    from unittest.mock import MagicMock
+
+    session = MagicMock()
+
+    def mock_get(url, **kwargs):
+        resp = MagicMock()
+        if "/swagger.json" in url:
+            resp.status_code = 200
+            content = json.dumps({"swagger": "2.0", "info": {"title": "Test", "version": "1.0"}, "paths": {"/health": {"get": {}}}}).encode("utf-8")
+            resp.raw.read.return_value = content
+        else:
+            resp.status_code = 404
+            resp.raw.read.return_value = b""
+        return resp
+
+    session.get = mock_get
+    discovered = discover_spec_url("https://api.example.com", session=session)
+    assert discovered is not None
+    assert isinstance(discovered, dict)
+    assert "operations" in discovered

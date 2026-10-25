@@ -75,7 +75,7 @@ def test_valid_sessions_and_denied_routes_have_observable_checks(target):
     url, server = target
     scan, findings = review(url, plan())
     assert scan.status == "COMPLETED" and not findings
-    assert scan.request_count == len(server.events) == 5
+    assert scan.request_count == len(server.events) == 6
     assert all(item["outcome"] == "PASS" for item in scan.execution_log[-1]["checks"])
 
 
@@ -183,7 +183,7 @@ def test_worker_persists_child_review_and_exports_coverage_without_credentials(t
     assert results[0][0].status == "COMPLETED"
     assert worker.session_plan is None
     children = [scan for scan in database.list_scans() if scan.parent_scan_id == results[0][0].id]
-    assert len(children) == 1 and children[0].request_count == 5
+    assert len(children) == 1 and children[0].request_count == 9
     report = export_assessment(database, results[0][0].id, "json", tmp_path / "exports")
     payload = json.loads(report.read_text(encoding="utf-8"))
     assert any(row["operation"] == "Session/access review" for row in payload["scan"]["execution_log"])

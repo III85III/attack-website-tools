@@ -49,10 +49,12 @@ class AssessmentReportActions(QWidget):
         row = QHBoxLayout()
         self.word_btn = QPushButton("Export Word report")
         self.word_btn.setProperty("class", "ActionBtn")
+        self.html_btn = QPushButton("Export HTML")
+        self.md_btn = QPushButton("Export Markdown")
         self.json_btn = QPushButton("Export JSON")
         self.open_btn = QPushButton("Open report")
         self.folder_btn = QPushButton("Show in folder")
-        for button in (self.word_btn, self.json_btn, self.open_btn, self.folder_btn):
+        for button in (self.word_btn, self.html_btn, self.md_btn, self.json_btn, self.open_btn, self.folder_btn):
             row.addWidget(button)
         row.addStretch()
         layout.addLayout(row)
@@ -61,6 +63,8 @@ class AssessmentReportActions(QWidget):
         self.message.setStyleSheet("color:#8ea9c0; font-size:11px;")
         layout.addWidget(self.message)
         self.word_btn.clicked.connect(lambda: self.export("docx"))
+        self.html_btn.clicked.connect(lambda: self.export("html"))
+        self.md_btn.clicked.connect(lambda: self.export("markdown"))
         self.json_btn.clicked.connect(lambda: self.export("json"))
         self.open_btn.clicked.connect(self.open_report)
         self.folder_btn.clicked.connect(self.open_folder)
@@ -76,8 +80,11 @@ class AssessmentReportActions(QWidget):
 
     def _refresh_buttons(self):
         busy = bool(self.worker and self.worker.isRunning())
-        self.word_btn.setEnabled(bool(self.scan_id) and not busy)
-        self.json_btn.setEnabled(bool(self.scan_id) and not busy)
+        enabled = bool(self.scan_id) and not busy
+        self.word_btn.setEnabled(enabled)
+        self.html_btn.setEnabled(enabled)
+        self.md_btn.setEnabled(enabled)
+        self.json_btn.setEnabled(enabled)
         self.open_btn.setEnabled(bool(self.last_path) and not busy)
         self.folder_btn.setEnabled(bool(self.last_path) and not busy)
 

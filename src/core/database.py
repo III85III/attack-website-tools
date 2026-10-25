@@ -239,6 +239,8 @@ class DatabaseManager:
 
     @staticmethod
     def _store_finding(conn: sqlite3.Connection, finding: Finding) -> None:
+        from src.core.privacy import sanitize_data
+        finding = Finding.from_dict(sanitize_data(finding.to_dict()))
         conn.execute(
             """
             INSERT OR REPLACE INTO findings (

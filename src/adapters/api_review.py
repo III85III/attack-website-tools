@@ -7,6 +7,7 @@ import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode, urljoin, urlsplit, urlunsplit
 
 import requests
@@ -278,3 +279,55 @@ class APIReviewAdapter:
                                    "collection_error_types": native._scan_metrics["errors"],
                                    "limits": "20 GET operations, 10 query probes, 3 browser candidates; no authentication assertions, resource enumeration or POST/JSON submission"})
         return scan, findings
+
+
+API_DISCOVERY_PATHS = (
+    "/openapi.json",
+    "/swagger.json",
+    "/v2/api-docs",
+    "/v3/api-docs",
+    "/api/openapi.json",
+    "/api/swagger.json",
+    "/swagger/v1/swagger.json",
+    "/docs/openapi.json",
+)
+
+
+def discover_spec_url(target: str, session=None, *, fetch=None, audit=None):
+    """Bounded discovery with exact-origin parsing, closed responses and visible attempts."""
+    valid, _, normalized = WebAuditorAdapter.validate_target_url(target)
+    if not valid:
+        return None
+    owned = session is None and fetch is None
+    http = session if session is not None else requests.Session() if owned else None
+    if owned:
+        http.trust_env = False
+    try:
+        for path in API_DISCOVERY_PATHS:
+            candidate = urljoin(normalized, path)
+            record = {"path": path, "outcome": "NOT_FOUND"}
+            if audit is not None:
+                audit.append(record)
+            response = None
+            try:
+                response = fetch(candidate, timeout=5) if fetch else http.get(candidate, timeout=(3, 5), stream=True, allow_redirects=False, verify=True)
+                record["http_status"] = response.status_code
+                if response.status_code != 200:
+                    continue
+                raw = response.content if fetch else response.raw.read(MAX_SPEC_BYTES + 1, decode_content=True)
+                if not isinstance(raw, bytes) or len(raw) > MAX_SPEC_BYTES:
+                    record["outcome"] = "INCONCLUSIVE"
+                    continue
+                document = json.loads(raw, object_pairs_hook=_unique, parse_constant=_invalid_constant)
+                plan = build_plan(normalized, document, hashlib.sha256(raw).hexdigest())
+                record.update(outcome="COLLECTED", source_sha256=plan["source_sha256"])
+                return plan
+            except (requests.RequestException, ValueError, TypeError, UnicodeError, RecursionError) as exc:
+                record.update(outcome="INCONCLUSIVE", error_type=type(exc).__name__)
+            finally:
+                if response is not None:
+                    response.close()
+    finally:
+        if owned:
+            http.close()
+    return None

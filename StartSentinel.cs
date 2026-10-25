@@ -4,16 +4,16 @@ using System.IO;
 using System.Reflection;
 using System.Windows.Forms;
 
-[assembly: AssemblyTitle("III85III MIRAGE SENTINEL")]
+[assembly: AssemblyTitle("III85III Qolam_Hacker")]
 [assembly: AssemblyDescription("Launch the verified portable Sentinel package")]
-[assembly: AssemblyVersion("0.19.0.0")]
+[assembly: AssemblyVersion("0.19.1.0")]
 internal static class StartSentinel
 {
     [STAThread]
     private static void Main()
     {
         string root = AppDomain.CurrentDomain.BaseDirectory;
-        string folder = Path.Combine(root, "release", "III85III_MIRAGE_SENTINEL_0.19.0_Windows-x64");
+        string folder = Path.Combine(root, "release", "III85III_MIRAGE_SENTINEL_0.19.1_Windows-x64");
         string executable = Path.Combine(folder, "Qolam_Sentinel.exe");
         try
         {
@@ -23,7 +23,7 @@ internal static class StartSentinel
         }
         catch (Exception error)
         {
-            MessageBox.Show(error.Message, "III85III MIRAGE SENTINEL", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(error.Message, "III85III Qolam_Hacker", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 }

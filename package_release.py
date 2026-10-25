@@ -87,7 +87,7 @@ def package() -> Path:
     for filename in ("README.md", "LICENSE", "COPYRIGHT", "THIRD_PARTY_NOTICES.md"):
         shutil.copy2(BASE / filename, destination / filename)
     (destination / "docs").mkdir()
-    for filename in ("USER_GUIDE_EN.md", "SECURITY_MODEL.md", "RESPONSIBLE_USE.md", "RELEASE_CHECKLIST.md", f"RELEASE_NOTES_{APP_VERSION}.md"):
+    for filename in ("USER_GUIDE_EN.md", "SECURITY_MODEL.md", "RESPONSIBLE_USE.md", "RELEASE_CHECKLIST.md", "DEPTH_COVERAGE_AUDIT.md", f"RELEASE_NOTES_{APP_VERSION}.md"):
         shutil.copy2(BASE / "docs" / filename, destination / "docs" / filename)
     (destination / "source").mkdir()
     shutil.copy2(source_zip, destination / "source" / source_zip.name)

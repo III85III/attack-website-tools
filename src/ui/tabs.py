@@ -147,6 +147,21 @@ class WebAuditWorker(QThread):
                 return
 
             modules = ["Sentinel DAST"]
+            if not self.api_plan:
+                try:
+                    self.progress_signal.emit("Auto-probing for exposed OpenAPI/Swagger definitions…")
+                    from src.adapters.api_review import discover_spec_url
+                    discovery_checks = []
+                    before = self.adapter._scan_metrics.get("request_count", 0)
+                    discovered = discover_spec_url(self.target_url, fetch=self.adapter._bounded_get, audit=discovery_checks)
+                    scan_run.request_count += self.adapter._scan_metrics.get("request_count", 0) - before
+                    scan_run.execution_log.append({"operation": "Automatic API discovery", "checks": discovery_checks,
+                        "request_count": len(discovery_checks), "definition_found": bool(discovered)})
+                    if discovered:
+                        self.api_plan = discovered
+                        self.progress_signal.emit(f"Auto-discovered OpenAPI spec with {len(discovered.get('operations', []))} operations!")
+                except Exception:
+                    scan_run.execution_log.append({"operation": "Automatic API discovery", "state": "INCONCLUSIVE", "error_type": "DiscoveryFailed"})
             optional_failures: List[str] = []
             if self.api_plan:
                 api_adapter = APIReviewAdapter()
@@ -154,6 +169,7 @@ class WebAuditWorker(QThread):
                 api_run, api_findings = api_adapter.run_scan(self.target_url, api_run, self.api_plan, self.progress_signal.emit)
                 db.save_import(api_run, api_findings)
                 findings.extend(api_findings)
+                scan_run.request_count += api_run.request_count
                 scan_run.execution_log.extend(api_run.execution_log)
                 if api_run.status == "COMPLETED":
                     modules.append("OpenAPI review")
@@ -168,6 +184,7 @@ class WebAuditWorker(QThread):
                 child, access_findings = review.run_scan(self.target_url, child, self.session_plan)
                 db.save_import(child, access_findings)
                 findings.extend(access_findings)
+                scan_run.request_count += child.request_count
                 scan_run.execution_log.extend(child.execution_log)
                 session_summary = child.completion_reason or child.error_message or child.status
                 if child.status == "COMPLETED":
@@ -499,7 +516,14 @@ class WebSecurityTab(QWidget):
     def __init__(self):
         super().__init__()
         self.db = DatabaseManager.get_instance()
+        self.all_findings = []
         self.current_findings = []
+
+
+
+
+
+
         self.session_plan = None
         self.api_plan = None
         self.setup_ui()
@@ -547,25 +571,32 @@ class WebSecurityTab(QWidget):
         self.target_input.returnPressed.connect(self.start_scan)
         form.addWidget(self.target_input)
 
-        engines = QLabel("BUILT-IN DAST  ·  ZAP / NMAP WHEN VERIFIED")
+        engines = QLabel("AUTOMATIC ASSESSMENT • OPTIONAL ACCOUNT/API SETUP: RIGHT-CLICK SCAN")
         engines.setStyleSheet("color:#63849f; font-size:10px; letter-spacing:1px;")
         form.addWidget(engines)
 
         actions = QHBoxLayout()
-        self.scan_btn = QPushButton("SCAN WEBSITE")
+        self.scan_btn = QPushButton("Scan Website")
+        self.scan_btn.setToolTip("Full automated scan: Passive checks, headers, exposures, crawling, API auto-discovery, ZAP & Nmap.")
         self.scan_btn.setProperty("class", "ActionBtn")
         self.scan_btn.setMinimumHeight(45)
         self.scan_btn.setMinimumWidth(180)
         self.scan_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.scan_btn.clicked.connect(self.start_scan)
         actions.addWidget(self.scan_btn)
-        self.session_btn = QPushButton("Assessment setup")
+        self.session_btn = QPushButton("Advanced Setup (Optional)")
+        self.session_btn.setToolTip("Optional: Full automated scan already runs headers, exposed files, crawler, API discovery, ZAP & Nmap. Use this menu only if you need custom session cookies or manual Swagger upload.")
         setup_menu = QMenu(self.session_btn)
-        setup_menu.addAction("Test sessions / access rules", self.configure_session_review)
-        setup_menu.addAction("Import OpenAPI / Swagger JSON", self.import_api_definition)
+        setup_menu.addAction("Test sessions / access rules (Optional)", self.configure_session_review)
+        setup_menu.addAction("Import OpenAPI / Swagger JSON (Optional)", self.import_api_definition)
         setup_menu.addAction("Clear API definition", self.clear_api_definition)
         self.session_btn.setMenu(setup_menu)
-        actions.addWidget(self.session_btn)
+        # Keep optional account/schema setup accessible without a second scan-mode control.
+        self.session_btn.setParent(self)
+        self.session_btn.hide()
+        self.scan_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.scan_btn.customContextMenuRequested.connect(lambda point: setup_menu.exec(self.scan_btn.mapToGlobal(point)))
+        self.scan_btn.setToolTip("Automatic assessment. Right-click for optional test-account or OpenAPI setup.")
 
         self.progress = QProgressBar()
         self.progress.setObjectName("ScanProgress")
@@ -605,6 +636,23 @@ class WebSecurityTab(QWidget):
 
         findings_box = QGroupBox("Scan Results")
         findings_layout = QVBoxLayout(findings_box)
+
+        # Real-time Findings Filter Controls
+        filter_row = QHBoxLayout()
+        self.filter_input = QLineEdit()
+        self.filter_input.setPlaceholderText("🔍 Filter findings by keyword, CWE, component, or title...")
+        self.filter_input.setClearButtonEnabled(True)
+        self.filter_input.setStyleSheet("font-size:12px; padding:6px 10px; border-radius:6px; background:#081422; border:1px solid #263c52; color:#d8e6f3;")
+        self.filter_input.textChanged.connect(self._apply_findings_filter)
+        filter_row.addWidget(self.filter_input, 3)
+
+        self.sev_filter = QComboBox()
+        self.sev_filter.addItems(["All Severities", "CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"])
+        self.sev_filter.setStyleSheet("font-size:12px; padding:5px 8px; border-radius:6px; background:#081422; border:1px solid #263c52; color:#d8e6f3;")
+        self.sev_filter.currentIndexChanged.connect(self._apply_findings_filter)
+        filter_row.addWidget(self.sev_filter, 1)
+
+        findings_layout.addLayout(filter_row)
         self.empty_results = QLabel("YOUR NEXT ASSESSMENT\n\nEnter an authorized URL above.\nFindings, evidence and report actions appear here after the scan.")
         self.empty_results.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_results.setWordWrap(True)
@@ -710,7 +758,14 @@ class WebSecurityTab(QWidget):
         self.progress.setVisible(True)
         self.findings_table.setRowCount(0)
         self.findings_table.hide()
+        self.all_findings = []
         self.current_findings = []
+
+
+
+
+
+
         self.severity_summary.hide()
         self.coverage_note.hide()
         self.report_actions.set_assessment(None)
@@ -738,7 +793,16 @@ class WebSecurityTab(QWidget):
         self.coverage_note.setVisible(bool(self.coverage_note.text()))
         severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
         findings = sorted(findings, key=lambda f: (severity_order.get(f.severity.value, 5), f.title.casefold()))
-        self.current_findings = findings
+        self.all_findings = list(findings)
+        self.current_findings = list(findings)
+        if hasattr(self, "filter_input"):
+            self.filter_input.blockSignals(True)
+            self.filter_input.clear()
+            self.filter_input.blockSignals(False)
+        if hasattr(self, "sev_filter"):
+            self.sev_filter.blockSignals(True)
+            self.sev_filter.setCurrentIndex(0)
+            self.sev_filter.blockSignals(False)
         self.severity_summary.show()
         for severity, label in self.severity_labels.items():
             count = sum(1 for f in findings if f.severity.value == severity and f.status != FindingStatus.FALSE_POSITIVE)
@@ -756,7 +820,21 @@ class WebSecurityTab(QWidget):
             f"Execution log: {next((item.get('path') for item in reversed(scan_run.execution_log) if item.get('path')), 'not available')}"
         )
 
-        # Update table
+        # Update table via dynamic filter populate
+        if scan_run.status == "FAILED":
+            self.empty_results.setText(
+                "Scan failed before a complete assessment. "
+                f"Reason: {scan_run.error_message or scan_run.completion_reason or 'Unknown execution failure.'}"
+            )
+        elif scan_run.status == "PARTIAL":
+            self.empty_results.setText(
+                "Assessment coverage is incomplete. "
+                f"{scan_run.completion_reason or ''}"
+            )
+        else:
+            self.empty_results.setText("No findings recorded. A clean scan does not prove the site is secure.")
+        self._populate_findings_table(findings)
+        return
         self.findings_table.setRowCount(len(findings))
         self.findings_table.setVisible(bool(findings))
         self.empty_results.setVisible(not findings)
@@ -779,6 +857,48 @@ class WebSecurityTab(QWidget):
             self.findings_table.setItem(row, 3, QTableWidgetItem(f.affected_component or "N/A"))
             self.findings_table.setItem(row, 4, QTableWidgetItem(f.evidence_summary))
             severity_colors = {"CRITICAL": "#ff6a88", "HIGH": "#ffae72", "MEDIUM": "#efd27f", "LOW": "#82d6b7", "INFO": "#8faeca"}
+            self.findings_table.item(row, 1).setForeground(QColor(severity_colors.get(f.severity.value, "#8faeca")))
+            self.findings_table.item(row, 0).setToolTip("Double-click to read evidence and remediation.")
+
+    def _apply_findings_filter(self):
+        query = self.filter_input.text().strip().lower()
+        selected_sev = self.sev_filter.currentText()
+        all_f = getattr(self, "all_findings", [])
+        if not all_f:
+            return
+
+        filtered = []
+        for f in all_f:
+            if selected_sev != "All Severities" and f.severity.value != selected_sev:
+                continue
+            if query:
+                searchable = f"{f.title} {f.severity.value} {f.confidence.value} {getattr(f, 'cwe_id', '') or ''} {getattr(f, 'cve_id', '') or ''} {f.affected_component or ''} {f.evidence_summary or ''}".lower()
+                if query not in searchable:
+                    continue
+            filtered.append(f)
+
+        self.current_findings = filtered
+        self._populate_findings_table(filtered)
+
+    def _populate_findings_table(self, findings: List[Finding]):
+        self.findings_table.setRowCount(len(findings))
+        has_items = bool(findings)
+        self.findings_table.setVisible(has_items)
+        if not has_items and getattr(self, "all_findings", []):
+            self.empty_results.setText("No findings match the current filter criteria.")
+            self.empty_results.show()
+        elif not has_items:
+            self.empty_results.show()
+        else:
+            self.empty_results.hide()
+
+        severity_colors = {"CRITICAL": "#ff6a88", "HIGH": "#ffae72", "MEDIUM": "#efd27f", "LOW": "#82d6b7", "INFO": "#8faeca"}
+        for row, f in enumerate(findings):
+            self.findings_table.setItem(row, 0, QTableWidgetItem(f.title))
+            self.findings_table.setItem(row, 1, QTableWidgetItem(f.severity.value))
+            self.findings_table.setItem(row, 2, QTableWidgetItem(f.confidence.value))
+            self.findings_table.setItem(row, 3, QTableWidgetItem(f.affected_component or "N/A"))
+            self.findings_table.setItem(row, 4, QTableWidgetItem(f.evidence_summary))
             self.findings_table.item(row, 1).setForeground(QColor(severity_colors.get(f.severity.value, "#8faeca")))
             self.findings_table.item(row, 0).setToolTip("Double-click to read evidence and remediation.")
 
@@ -1097,7 +1217,16 @@ class FindingsTab(QWidget):
         sev_filter = None if sev_idx == 0 else self.filter_combo.currentText()
         findings = self.db.list_findings(severity=sev_filter, limit=200)
 
-        self.current_findings = findings
+        self.all_findings = list(findings)
+        self.current_findings = list(findings)
+        if hasattr(self, "filter_input"):
+            self.filter_input.blockSignals(True)
+            self.filter_input.clear()
+            self.filter_input.blockSignals(False)
+        if hasattr(self, "sev_filter"):
+            self.sev_filter.blockSignals(True)
+            self.sev_filter.setCurrentIndex(0)
+            self.sev_filter.blockSignals(False)
         self.table.setRowCount(len(findings))
 
         for row, f in enumerate(findings):

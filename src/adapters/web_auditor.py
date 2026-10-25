@@ -8,7 +8,10 @@ import re
 import hashlib
 import json
 import time
+import secrets
 from collections import deque
+from dataclasses import dataclass
+from enum import Enum
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from typing import Any, Dict, List, Optional, Tuple
@@ -18,6 +21,8 @@ import requests
 
 from src.adapters.base import BaseToolAdapter
 from src.adapters.browser_xss import BrowserXSSVerifier, MAX_BROWSER_CANDIDATES
+from src.core.application_map import ApplicationMap, origin as map_origin, safe_url as map_safe_url, read_only_candidate
+from src.core.privacy import sanitize_data
 from src.core.cve_intel import CVEIntelligenceEngine
 from src.core.models import (
     Finding,
@@ -29,10 +34,10 @@ from src.core.models import (
 )
 
 
-MAX_CRAWL_PAGES = 25
+MAX_CRAWL_PAGES = 40
 MAX_RESPONSE_BYTES = 1_000_000
 CRAWL_DELAY_SECONDS = 0.20
-MAX_ACTIVE_PARAMETERS = 10
+MAX_ACTIVE_PARAMETERS = 15
 INPUT_PROBE_MARKER = "SENTINEL-PROBE"
 
 
@@ -59,25 +64,275 @@ class _PageInventoryParser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.links: List[str] = []
         self.forms: List[Dict[str, Any]] = []
+        self.scripts: List[str] = []
         self._form: Optional[Dict[str, Any]] = None
 
     def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> None:
         values = {key.lower(): value or "" for key, value in attrs}
         if tag in {"a", "area"} and values.get("href"):
             self.links.append(values["href"])
+        elif tag == "script" and values.get("src"):
+            self.scripts.append(values["src"])
         elif tag == "form":
             self._form = {
                 "action": values.get("action", ""),
                 "method": values.get("method", "get").lower(),
                 "password_field": False,
+                "has_csrf_token": False,
+                "fields": [],
             }
             self.forms.append(self._form)
-        elif tag == "input" and self._form is not None and values.get("type", "").lower() == "password":
-            self._form["password_field"] = True
+        elif tag in {"input", "textarea", "select", "button"} and self._form is not None:
+            inp_type = values.get("type", "").lower()
+            inp_name = values.get("name", "").lower()
+            if inp_type == "password":
+                self._form["password_field"] = True
+            if any(k in inp_name for k in ("csrf", "xsrf", "token", "_token", "authenticity_token", "nonce")):
+                self._form["has_csrf_token"] = True
+            if inp_name:
+                if inp_name not in self._form["fields"]:
+                    self._form["fields"].append(inp_name)
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "form":
             self._form = None
+
+
+class HTMLReflectionContext(str, Enum):
+    HTML_BODY = "HTML_BODY"
+    ATTRIBUTE_VALUE_QUOTED = "ATTRIBUTE_VALUE_QUOTED"
+    ATTRIBUTE_VALUE_UNQUOTED = "ATTRIBUTE_VALUE_UNQUOTED"
+    ATTRIBUTE_EVENT_HANDLER = "ATTRIBUTE_EVENT_HANDLER"
+    ATTRIBUTE_URI = "ATTRIBUTE_URI"
+    SCRIPT_BLOCK = "SCRIPT_BLOCK"
+    INERT_TAG = "INERT_TAG"
+    COMMENT = "COMMENT"
+    UNKNOWN = "UNKNOWN"
+
+
+@dataclass
+class ReflectionAnalysis:
+    probe_found: bool
+    context: HTMLReflectionContext
+    can_break_out: bool
+    details: str
+    recommends_alert: bool
+    suggested_severity: FindingSeverity
+    suggested_confidence: FindingConfidence
+
+
+class HTMLReflectionContextAnalyzer:
+    """
+    Analyzes DOM context of reflected probes to distinguish genuine XSS breakout candidates
+    from safely encoded or inert reflections (in attributes, comments, textarea, etc.).
+    """
+
+    @classmethod
+    def analyze(cls, html_body: str, probe_value: str) -> ReflectionAnalysis:
+        if not html_body or not probe_value or probe_value not in html_body:
+            return ReflectionAnalysis(
+                probe_found=False,
+                context=HTMLReflectionContext.UNKNOWN,
+                can_break_out=False,
+                details="Probe marker not found in response body",
+                recommends_alert=False,
+                suggested_severity=FindingSeverity.INFO,
+                suggested_confidence=FindingConfidence.LOW,
+            )
+
+        idx = html_body.find(probe_value)
+        prefix = html_body[:idx]
+
+        # 1. Check if inside HTML comment: <!-- ... probe ... -->
+        last_comment_open = prefix.rfind("<!--")
+        if last_comment_open != -1:
+            last_comment_close = prefix.rfind("-->")
+            if last_comment_close < last_comment_open:
+                can_break = "-->" in probe_value
+                return ReflectionAnalysis(
+                    probe_found=True,
+                    context=HTMLReflectionContext.COMMENT,
+                    can_break_out=can_break,
+                    details="Probe reflected inside HTML comment <!-- ... -->" + (" (breaks out with -->)" if can_break else " (safely trapped in comment)"),
+                    recommends_alert=can_break,
+                    suggested_severity=FindingSeverity.HIGH if can_break else FindingSeverity.LOW,
+                    suggested_confidence=FindingConfidence.CONFIRMED if can_break else FindingConfidence.LOW,
+                )
+
+        # 2. Check if inside inert non-executable tags: textarea, title, style, noscript
+        for tag in ("textarea", "title", "style", "noscript"):
+            last_open = prefix.lower().rfind(f"<{tag}")
+            if last_open != -1:
+                last_close = prefix.lower().rfind(f"</{tag}>")
+                if last_close < last_open:
+                    can_break = f"</{tag}>" in probe_value.lower()
+                    return ReflectionAnalysis(
+                        probe_found=True,
+                        context=HTMLReflectionContext.INERT_TAG,
+                        can_break_out=can_break,
+                        details=f"Probe reflected inside inert <{tag}> container" + (f" (breaks out with </{tag}>)" if can_break else f" (inert without closing </{tag}> tag)"),
+                        recommends_alert=can_break,
+                        suggested_severity=FindingSeverity.HIGH if can_break else FindingSeverity.LOW,
+                        suggested_confidence=FindingConfidence.CONFIRMED if can_break else FindingConfidence.LOW,
+                    )
+
+        # 3. Check if inside <script> tag
+        last_script_open = prefix.lower().rfind("<script")
+        if last_script_open != -1:
+            last_script_close = prefix.lower().rfind("</script>")
+            if last_script_close < last_script_open:
+                can_break = "</script>" in probe_value.lower() or any(c in probe_value for c in ("'", '"', ";", "`"))
+                return ReflectionAnalysis(
+                    probe_found=True,
+                    context=HTMLReflectionContext.SCRIPT_BLOCK,
+                    can_break_out=can_break,
+                    details="Probe reflected inside <script> block" + (" (contains unescaped script breakout / syntax delimiters)" if can_break else " (safely encoded or trapped)"),
+                    recommends_alert=can_break,
+                    suggested_severity=FindingSeverity.HIGH if can_break else FindingSeverity.LOW,
+                    suggested_confidence=FindingConfidence.HIGH if can_break else FindingConfidence.LOW,
+                )
+
+        # 4. Check if inside an HTML tag attribute: <tag attr="probe" ...>
+        last_tag_open = prefix.rfind("<")
+        last_tag_close = prefix.rfind(">")
+        if last_tag_open > last_tag_close:
+            tag_content_prefix = prefix[last_tag_open:]
+            attr_match = re.search(r'([a-zA-Z0-9_\-:]+)\s*=\s*([\'"]?)[^\'"]*$', tag_content_prefix)
+            attr_name = attr_match.group(1).lower() if attr_match else ""
+            quote_char = attr_match.group(2) if attr_match else ""
+
+            if attr_name.startswith("on"):
+                return ReflectionAnalysis(
+                    probe_found=True,
+                    context=HTMLReflectionContext.ATTRIBUTE_EVENT_HANDLER,
+                    can_break_out=True,
+                    details=f"Probe reflected directly into event handler attribute '{attr_name}', allowing inline JavaScript execution",
+                    recommends_alert=True,
+                    suggested_severity=FindingSeverity.HIGH,
+                    suggested_confidence=FindingConfidence.CONFIRMED,
+                )
+
+            if attr_name in {"href", "src", "action", "formaction"}:
+                can_break = quote_char in probe_value if quote_char else (" " in probe_value or ">" in probe_value)
+                return ReflectionAnalysis(
+                    probe_found=True,
+                    context=HTMLReflectionContext.ATTRIBUTE_URI,
+                    can_break_out=can_break,
+                    details=f"Probe reflected in URI attribute '{attr_name}'" + (" (breaks out of attribute)" if can_break else " (trapped in URI attribute)"),
+                    recommends_alert=can_break or probe_value.lower().startswith("javascript:"),
+                    suggested_severity=FindingSeverity.HIGH if can_break else FindingSeverity.MEDIUM,
+                    suggested_confidence=FindingConfidence.HIGH,
+                )
+
+            if quote_char in {'"', "'"}:
+                can_break = quote_char in probe_value
+                return ReflectionAnalysis(
+                    probe_found=True,
+                    context=HTMLReflectionContext.ATTRIBUTE_VALUE_QUOTED,
+                    can_break_out=can_break,
+                    details=f"Probe reflected inside quoted attribute '{attr_name}' ({quote_char})" + (f" (breaks out using unescaped {quote_char})" if can_break else f" (safely enclosed; delimiter {quote_char} is escaped)"),
+                    recommends_alert=can_break,
+                    suggested_severity=FindingSeverity.HIGH if can_break else FindingSeverity.LOW,
+                    suggested_confidence=FindingConfidence.CONFIRMED if can_break else FindingConfidence.LOW,
+                )
+
+            can_break = any(c in probe_value for c in (" ", ">", "\t", "\n"))
+            return ReflectionAnalysis(
+                probe_found=True,
+                context=HTMLReflectionContext.ATTRIBUTE_VALUE_UNQUOTED,
+                can_break_out=can_break,
+                details=f"Probe reflected in unquoted attribute '{attr_name}'" + (" (breaks out with whitespace/closing delimiter)" if can_break else " (safely bounded)"),
+                recommends_alert=can_break,
+                suggested_severity=FindingSeverity.HIGH if can_break else FindingSeverity.LOW,
+                suggested_confidence=FindingConfidence.CONFIRMED if can_break else FindingConfidence.LOW,
+            )
+
+        # 5. Default: HTML body between tags
+        can_break = "<" in probe_value and ">" in probe_value
+        return ReflectionAnalysis(
+            probe_found=True,
+            context=HTMLReflectionContext.HTML_BODY,
+            can_break_out=can_break,
+            details="Probe reflected directly in HTML body context" + (" with unescaped HTML tag delimiters (< >)" if can_break else " without unescaped tag delimiters (< >)"),
+            recommends_alert=can_break,
+            suggested_severity=FindingSeverity.HIGH if can_break else FindingSeverity.LOW,
+            suggested_confidence=FindingConfidence.CONFIRMED if can_break else FindingConfidence.LOW,
+        )
+
+
+class JavaScriptDataFlowAnalyzer:
+    """
+    Lightweight static source-to-sink data flow analyzer for frontend JavaScript bundles.
+    Detects DOM-based Cross-Site Scripting (CWE-79) and Client-Side Open Redirects (CWE-601).
+    """
+
+    DOM_SOURCES = [
+        r"location\.search",
+        r"location\.hash",
+        r"location\.href",
+        r"location\.pathname",
+        r"document\.URL",
+        r"document\.documentURI",
+        r"document\.referrer",
+        r"window\.name",
+    ]
+
+    DOM_XSS_SINKS = [
+        (r"\.innerHTML\s*=", "innerHTML assignment"),
+        (r"\.outerHTML\s*=", "outerHTML assignment"),
+        (r"document\.write\s*\(", "document.write invocation"),
+        (r"document\.writeln\s*\(", "document.writeln invocation"),
+        (r"\beval\s*\(", "eval invocation"),
+        (r"setTimeout\s*\([^,)]*?,", "setTimeout invocation with dynamic code"),
+        (r"setInterval\s*\([^,)]*?,", "setInterval invocation with dynamic code"),
+        (r"new\s+Function\s*\(", "Function constructor execution"),
+    ]
+
+    DOM_REDIRECT_SINKS = [
+        (r"location(?:\.href)?\s*=", "location.href assignment"),
+        (r"location\.(?:assign|replace)\s*\(", "location navigation method"),
+        (r"window\.location(?:\.href)?\s*=", "window.location assignment"),
+        (r"window\.open\s*\(", "window.open invocation"),
+    ]
+
+    @classmethod
+    def analyze_script(cls, script_url, script_text, scan_id=None):
+        from src.adapters.javascript_analysis import analyze_flows
+        return analyze_flows(script_url, script_text, scan_id)
+
+
+class DifferentialAccessEvaluator:
+    """
+    Evaluates multi-state and identifier differential responses to detect genuine
+    Broken Object-Level Authorization (BOLA/IDOR - CWE-639) while suppressing
+    false positives caused by public catalogs, blogs, and soft-404 errors.
+    """
+
+    PUBLIC_CATALOG_INDICATORS = {
+        "product", "item", "catalog", "shop", "store", "article", "post",
+        "blog", "news", "doc", "document", "category", "topic", "faq", "listing"
+    }
+
+    SOFT_404_INDICATORS = (
+        "not found", "item not found", "does not exist", "record not found",
+        "invalid id", "error 404", "could not find", "no results found",
+        "page not found", "resource not found", "cannot find the requested"
+    )
+
+    PRIVATE_DATA_PATTERNS = [
+        (r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b", "email address"),
+        (r"\b(?:\+?1[-. ]?)?\(?[2-9]\d{2}\)?[-. ]?\d{3}[-. ]?\d{4}\b", "phone number"),
+        (r"\b\d{3}-\d{2}-\d{4}\b", "social security / tax number"),
+        (r"""["'](?:password|password_hash|passwd|secret|token|api_key|access_token|private_key)["']\s*:\s*["'][^"']+["']""", "credential or secret token"),
+        (r"""["'](?:balance|credit_card|card_number|cvv|account_balance|billing_address)["']\s*:""", "financial or billing data"),
+        (r"""["'](?:ssn|user_id|member_id|customer_id|tenant_id)["']\s*:\s*(?:[0-9]+|["'][^"']+["'])""", "identity / tenant record identifier"),
+    ]
+
+    @classmethod
+    def evaluate_object_access(cls, baseline_response, probe_response, parameter, original_val, probe_val):
+        return {"is_vulnerable": False, "confidence": FindingConfidence.LOW, "severity": FindingSeverity.INFO,
+                "reason": "Response/size differences do not establish object ownership or expected denial; use the declared multi-identity session review.",
+                "leaked_fields": [], "is_public_catalog": False, "is_soft_404": False}
 
 
 class WebAuditorAdapter(BaseToolAdapter):
@@ -161,6 +416,13 @@ class WebAuditorAdapter(BaseToolAdapter):
         """
         findings: List[Finding] = []
         self._browser_checks = []
+        self._discovered_endpoints = []
+        self._collected_scripts_text = []
+        self._untested_checks = []
+        self._application_map = ApplicationMap(target_url)
+        self._authorized_origin = map_origin(target_url)
+        self._request_attempts = 0
+        self._next_request_at = 0
         valid_target, validation_message, url = self.validate_target_url(target_url)
         try:
             parsed = urlparse(url)
@@ -274,7 +536,30 @@ class WebAuditorAdapter(BaseToolAdapter):
             if progress_callback:
                 progress_callback("Checking CORS policy and safe query-parameter probes...")
             findings.extend(self._check_cors(url, scan_id))
-            findings.extend(self._probe_query_parameters(inventory.get("input_points", []), scan_id, progress_callback))
+            # (Parameter probing scheduled after JS asset and endpoint discovery)
+
+        # Frontend JavaScript Assets & Endpoints Analysis
+        if inventory.get("scripts"):
+            findings.extend(self._audit_javascript_assets(url, inventory["scripts"], scan_id, progress_callback))
+
+        # Merge discovered API endpoints into input points for active parameter testing
+        discovered_input_points = list(inventory.get("input_points", []))
+        if hasattr(self, "_discovered_endpoints") and self._discovered_endpoints:
+            for ep in self._discovered_endpoints:
+                if len(discovered_input_points) >= MAX_ACTIVE_PARAMETERS:
+                    break
+                ep_parsed = urlparse(ep)
+                if ep_parsed.query:
+                    names = list(dict.fromkeys(name for name, _ in parse_qsl(ep_parsed.query, keep_blank_values=True) if name))
+                    if names:
+                        ep_url = urljoin(url, ep)
+                        discovered_input_points.append({
+                            "url": ep_url,
+                            "names": names[:MAX_ACTIVE_PARAMETERS],
+                        })
+
+        if deep_scan:
+            findings.extend(self._probe_query_parameters(discovered_input_points, scan_id, progress_callback))
 
         # 2. Security Headers Audit
         if progress_callback:
@@ -378,6 +663,57 @@ class WebAuditorAdapter(BaseToolAdapter):
                     evidence_raw=f"X-Content-Type-Options: {headers.get('X-Content-Type-Options', 'NOT_SET')}",
                     evidence_summary="Missing X-Content-Type-Options: nosniff",
                     remediation="Configure web server to return: X-Content-Type-Options: nosniff",
+                )
+            )
+
+        # E. Referrer-Policy
+        if "Referrer-Policy" not in headers:
+            findings.append(
+                Finding(
+                    scan_id=scan_id,
+                    title=f"Missing Referrer-Policy Header on {domain}",
+                    description=(
+                        "The application does not specify a 'Referrer-Policy' header. "
+                        "When navigating to third-party links, sensitive URL parameters or internal tokens may leak in the HTTP Referer header."
+                    ),
+                    source_tool=self.name,
+                    tool_version=self.version,
+                    target=url,
+                    severity=FindingSeverity.LOW,
+                    severity_source="OWASP Secure Headers Project",
+                    confidence=FindingConfidence.CONFIRMED,
+                    confidence_justification="Header 'Referrer-Policy' is absent from HTTP response",
+                    status=FindingStatus.SCANNER_REPORTED,
+                    evidence_raw=str(self._safe_headers(headers)),
+                    evidence_summary="Missing header: Referrer-Policy",
+                    cwe_id="CWE-116",
+                    remediation="Add header: Referrer-Policy: strict-origin-when-cross-origin",
+                )
+            )
+
+        # F. Permissions-Policy
+        if "Permissions-Policy" not in headers and "Feature-Policy" not in headers:
+            findings.append(
+                Finding(
+                    scan_id=scan_id,
+                    title=f"Missing Permissions-Policy Header on {domain}",
+                    description=(
+                        "The application does not set a 'Permissions-Policy' header to restrict browser features "
+                        "(e.g., camera, microphone, geolocation, payment). "
+                        "Defining a restrictive policy strengthens defense against malicious third-party scripts."
+                    ),
+                    source_tool=self.name,
+                    tool_version=self.version,
+                    target=url,
+                    severity=FindingSeverity.INFO,
+                    severity_source="W3C Permissions Policy",
+                    confidence=FindingConfidence.CONFIRMED,
+                    confidence_justification="Headers 'Permissions-Policy' and 'Feature-Policy' are missing",
+                    status=FindingStatus.SCANNER_REPORTED,
+                    evidence_raw=str(self._safe_headers(headers)),
+                    evidence_summary="Missing header: Permissions-Policy",
+                    cwe_id="CWE-1021",
+                    remediation="Add header: Permissions-Policy: camera=(), microphone=(), geolocation=()",
                 )
             )
 
@@ -499,6 +835,37 @@ class WebAuditorAdapter(BaseToolAdapter):
                     )
                 )
 
+            c_samesite = None
+            if hasattr(cookie, "has_nonstandard_attr") and cookie.has_nonstandard_attr("samesite"):
+                c_samesite = cookie.get_nonstandard_attr("samesite")
+            elif "samesite" in getattr(cookie, "_rest", {}):
+                c_samesite = cookie._rest["samesite"]
+
+            if not c_samesite:
+                findings.append(
+                    Finding(
+                        scan_id=scan_id,
+                        title=f"Cookie '{c_name}' Missing SameSite Attribute on {domain}",
+                        description=(
+                            f"The cookie '{c_name}' does not declare a 'SameSite' attribute. "
+                            "Configuring SameSite=Lax or SameSite=Strict provides browser-level defense in depth against CSRF."
+                        ),
+                        source_tool=self.name,
+                        tool_version=self.version,
+                        target=f"{url} [cookie:{c_name}]",
+                        severity=FindingSeverity.LOW,
+                        severity_source="OWASP Session Management",
+                        confidence=FindingConfidence.CONFIRMED,
+                        confidence_justification="Cookie Set-Cookie header lacks SameSite attribute",
+                        status=FindingStatus.SCANNER_REPORTED,
+                        evidence_raw=str({"name": c_name, "samesite": "NOT_SET", "secure": c_secure}),
+                        evidence_summary=f"Cookie {c_name}: SameSite=Not Set",
+                        cwe_id="CWE-1275",
+                        affected_component=f"Cookie:{c_name}",
+                        remediation="Set SameSite=Lax or SameSite=Strict on all sensitive session cookies.",
+                    )
+                )
+
         # 5. Sensitive File & Endpoint Probing (Safe Heuristic Checks)
         if progress_callback:
             progress_callback("Checking sensitive file & endpoint exposures...")
@@ -508,6 +875,15 @@ class WebAuditorAdapter(BaseToolAdapter):
             (".git/HEAD", "Exposed Git Repository Metadata"),
             (".env", "Exposed Environment Configuration File"),
             (".well-known/security.txt", "Security Disclosure Contact File"),
+            ("sitemap.xml", "Sitemap XML File"),
+            ("actuator/health", "Spring Boot Actuator Health Endpoint"),
+            ("actuator/env", "Spring Boot Actuator Environment Endpoint"),
+            ("actuator", "Spring Boot Actuator Base Endpoint"),
+            ("swagger-ui.html", "Swagger UI Documentation"),
+            ("swagger-ui/index.html", "Swagger UI Interactive Console"),
+            ("graphql", "GraphQL API Endpoint"),
+            ("composer.json", "PHP Composer Dependency Manifest"),
+            ("package.json", "Node.js Dependency Manifest"),
         ]
 
         for s_path, s_desc in sensitive_paths:
@@ -589,19 +965,186 @@ class WebAuditorAdapter(BaseToolAdapter):
                                     remediation="Ensure sensitive administrative routes enforce strict server-side authorization.",
                                 )
                             )
+                    elif s_path == "sitemap.xml" and ("<urlset" in body_sample.lower() or "<sitemapindex" in body_sample.lower()):
+                        findings.append(
+                            Finding(
+                                scan_id=scan_id,
+                                title=f"Public Sitemap XML Exposed at {test_url}",
+                                description=f"The sitemap file '{test_url}' exposes public URLs and endpoints for indexing.",
+                                source_tool=self.name,
+                                tool_version=self.version,
+                                target=test_url,
+                                severity=FindingSeverity.INFO,
+                                severity_source="Sitemap Discovery",
+                                confidence=FindingConfidence.CONFIRMED,
+                                confidence_justification="HTTP 200 containing valid XML sitemap tags",
+                                status=FindingStatus.OBSERVED,
+                                evidence_raw=s_resp.text[:500],
+                                evidence_summary="Valid sitemap.xml discovered on target host",
+                                remediation="Review exposed sitemap paths to ensure private administrative or staging endpoints are not listed.",
+                                )
+                            )
+                    elif s_path == "actuator/env" and ("propertysources" in body_sample.lower() or "activeprofiles" in body_sample.lower()):
+                        findings.append(
+                            Finding(
+                                scan_id=scan_id,
+                                title=f"Exposed Spring Boot Actuator Environment at {test_url}",
+                                description=(
+                                    f"The endpoint '{test_url}' exposes Spring Boot environment properties without authentication. "
+                                    "This can reveal server environment variables, configuration parameters, and application metadata."
+                                ),
+                                source_tool=self.name,
+                                tool_version=self.version,
+                                target=test_url,
+                                severity=FindingSeverity.HIGH,
+                                severity_source="OWASP A05:2021 Security Misconfiguration",
+                                confidence=FindingConfidence.CONFIRMED,
+                                confidence_justification="HTTP 200 with Spring Boot propertySources JSON structure",
+                                status=FindingStatus.SCANNER_REPORTED,
+                                evidence_raw=json.dumps({"status_code": 200, "sample": body_sample[:150]}, ensure_ascii=False),
+                                evidence_summary="Spring Boot actuator/env exposed publicly",
+                                cwe_id="CWE-200",
+                                remediation="Restrict Spring Boot actuator endpoints to internal management networks or require strong authentication.",
+                            )
+                        )
+                    elif s_path in {"actuator", "actuator/health"} and ("\"status\"" in body_sample.lower() or "\"_links\"" in body_sample.lower()):
+                        findings.append(
+                            Finding(
+                                scan_id=scan_id,
+                                title=f"Exposed Spring Boot Actuator at {test_url}",
+                                description=f"The endpoint '{test_url}' exposes Spring Boot actuator management metadata.",
+                                source_tool=self.name,
+                                tool_version=self.version,
+                                target=test_url,
+                                severity=FindingSeverity.LOW,
+                                severity_source="OWASP Information Exposure",
+                                confidence=FindingConfidence.CONFIRMED,
+                                confidence_justification="HTTP 200 matching Spring Boot Actuator response markers",
+                                status=FindingStatus.OBSERVED,
+                                evidence_raw=body_sample[:150],
+                                evidence_summary="Spring Boot Actuator endpoint accessible",
+                                cwe_id="CWE-200",
+                                remediation="Ensure sensitive actuator endpoints are excluded in application.properties (e.g., management.endpoints.web.exposure.include=health,info).",
+                            )
+                        )
+                    elif "swagger-ui" in s_path and ("swagger-ui" in body_sample.lower() or "id=\"swagger-ui\"" in body_sample.lower()):
+                        findings.append(
+                            Finding(
+                                scan_id=scan_id,
+                                title=f"Exposed Interactive Swagger UI at {test_url}",
+                                description=(
+                                    f"Interactive API documentation was discovered at '{test_url}'. "
+                                    "Swagger UI documents application endpoints and parameters, allowing attackers to map full API capabilities."
+                                ),
+                                source_tool=self.name,
+                                tool_version=self.version,
+                                target=test_url,
+                                severity=FindingSeverity.LOW,
+                                severity_source="OWASP Information Exposure",
+                                confidence=FindingConfidence.CONFIRMED,
+                                confidence_justification="HTML contains Swagger UI container markers",
+                                status=FindingStatus.OBSERVED,
+                                evidence_raw=body_sample[:150],
+                                evidence_summary="Public Swagger UI interactive console found",
+                                cwe_id="CWE-200",
+                                remediation="Disable Swagger UI in production environments or place it behind authentication.",
+                            )
+                        )
+                    elif s_path in {"composer.json", "package.json"} and ("\"require\"" in body_sample.lower() or "\"dependencies\"" in body_sample.lower()):
+                        findings.append(
+                            Finding(
+                                scan_id=scan_id,
+                                title=f"Exposed Dependency Manifest ({s_path}) at {test_url}",
+                                description=f"The dependency manifest file '{s_path}' is publicly accessible, disclosing exact library names and versions.",
+                                source_tool=self.name,
+                                tool_version=self.version,
+                                target=test_url,
+                                severity=FindingSeverity.LOW,
+                                severity_source="OWASP Information Disclosure",
+                                confidence=FindingConfidence.CONFIRMED,
+                                confidence_justification=f"HTTP 200 containing {s_path} package definitions",
+                                status=FindingStatus.OBSERVED,
+                                evidence_raw=body_sample[:200],
+                                evidence_summary=f"Public {s_path} exposes package dependencies",
+                                cwe_id="CWE-200",
+                                remediation="Block public access to package.json, composer.json, and lockfiles via web server rules.",
+                            )
+                        )
+                        findings.extend(self._audit_dependency_manifest(test_url, s_path, s_resp.text, scan_id))
+                    elif s_path == "graphql":
+                        try:
+                            g_resp = self._bounded_get(test_url + "?" + urlencode({"query": "{ __schema { types { name } } }"}), timeout=5)
+                            if g_resp.status_code == 200 and "__schema" in g_resp.text:
+                                findings.append(
+                                    Finding(
+                                        scan_id=scan_id,
+                                        title=f"GraphQL Introspection Schema Enabled at {test_url}",
+                                        description=(
+                                            f"The GraphQL endpoint '{test_url}' has schema introspection enabled. "
+                                            "Introspection permits querying the entire schema, revealing internal types, fields, queries, and mutations."
+                                        ),
+                                        source_tool=self.name,
+                                        tool_version=self.version,
+                                        target=test_url,
+                                        severity=FindingSeverity.MEDIUM,
+                                        severity_source="OWASP API Security Top 10 API8:2023 Security Misconfiguration",
+                                        confidence=FindingConfidence.CONFIRMED,
+                                        confidence_justification="POST query returned valid __schema introspection payload",
+                                        status=FindingStatus.SCANNER_REPORTED,
+                                        evidence_raw=g_resp.text[:300],
+                                        evidence_summary="GraphQL introspection enabled and queryable",
+                                        cwe_id="CWE-200",
+                                        remediation="Disable GraphQL introspection in production environments.",
+                                    )
+                                )
+                        except requests.RequestException:
+                            pass
             except requests.RequestException as exc:
                 if self._scan_metrics and not isinstance(exc, requests.RequestException) and len(self._scan_metrics["errors"]) < 20:
                     self._scan_metrics["errors"].append(type(exc).__name__)
                 continue
 
+        # 6. Passive Certificate Transparency Subdomain Intelligence
+        findings.extend(self._audit_subdomains(domain, scan_id, progress_callback))
+
+        # 7. Form Anti-CSRF Audit
+        if inventory.get("csrf_forms"):
+            findings.extend(self._audit_csrf_forms(domain, inventory.get("csrf_forms", []), resp.cookies, scan_id))
+
+        # 8. JWT Security Audit across headers, cookies, and scripts
+        findings.extend(self._audit_jwt_tokens(url, resp.cookies, headers, getattr(self, "_collected_scripts_text", []), scan_id))
+
+        # 9. BFLA & HTTP Method Tampering (for deep_scan)
+        if deep_scan:
+            findings.extend(self._audit_bfla_and_verbs(url, scan_id, progress_callback))
+
+        # 10. Excessive Data Exposure Audit for discovered API routes
+        disc_eps = getattr(self, "_discovered_endpoints", [])
+        if disc_eps:
+            findings.extend(self._audit_api_data_exposure(url, disc_eps, scan_id))
+
         return findings
 
-    def _bounded_get(self, url: str, timeout: int, headers: Optional[Dict[str, str]] = None) -> Any:
+    def _bounded_get(self, url: str, timeout: int, headers: Optional[Dict[str, str]] = None, method: str = "GET") -> Any:
         """Fetch a response without redirects and cap its in-memory body size."""
+        if method not in {"GET", "HEAD"}:
+            raise requests.RequestException("Unsupported collection method")
+        if getattr(self, "_authorized_origin", None) and map_origin(url) != self._authorized_origin:
+            raise requests.RequestException("Out-of-origin request rejected")
+        if not read_only_candidate(url):
+            raise requests.RequestException("Discovery policy excludes this request")
+        self._request_attempts = getattr(self, "_request_attempts", 0) + 1
+        if self._request_attempts > 240:
+            if self._scan_metrics and "request_budget_exceeded" not in self._scan_metrics["errors"]:
+                self._scan_metrics["errors"].append("request_budget_exceeded")
+            raise requests.RequestException("Native request budget exhausted")
+        time.sleep(max(0, getattr(self, "_next_request_at", 0) - time.monotonic()))
+        self._next_request_at = time.monotonic() + 0.05
         if self._scan_metrics:
             self._scan_metrics["request_count"] += 1
         try:
-            response = self.session.get(
+            transport = self.session.get if method == "GET" else self.session.head
+            response = transport(
                 url,
                 timeout=(3, timeout),
                 allow_redirects=False,
@@ -660,6 +1203,8 @@ class WebAuditorAdapter(BaseToolAdapter):
         input_points: List[Dict[str, Any]] = []
         input_point_keys = set()
         password_forms = 0
+        scripts_found: List[str] = []
+        csrf_vulnerable_forms: List[Dict[str, Any]] = []
 
         while queue and len(visited) < MAX_CRAWL_PAGES:
             page_url, depth, response = queue.popleft()
@@ -687,8 +1232,43 @@ class WebAuditorAdapter(BaseToolAdapter):
                 if form["password_field"]:
                     password_forms += 1
                     page_has_password_form = True
+                if form["method"] == "post" and not form["has_csrf_token"]:
+                    csrf_vulnerable_forms.append({
+                        "page": parsed.path or "/",
+                        "action": form["action"] or parsed.path or "/",
+                        "fields": form.get("fields", [])[:8],
+                    })
+                if form["method"] == "get" and form.get("fields"):
+                    form_action = urljoin(page_url, form.get("action") or parsed.path or "/")
+                    fa_parsed = urlparse(form_action)
+                    if self._web_origin(fa_parsed) == origin:
+                        f_names = [f for f in form["fields"] if f]
+                        if f_names:
+                            f_query = urlencode([(f, "1") for f in f_names])
+                            f_url = urlunparse((fa_parsed.scheme, fa_parsed.netloc, fa_parsed.path or "/", "", f_query, ""))
+                            point_key = (f_url, tuple(f_names))
+                            if point_key not in input_point_keys and len(input_points) < MAX_ACTIVE_PARAMETERS:
+                                input_point_keys.add(point_key)
+                                input_points.append({
+                                    "url": f_url,
+                                    "names": f_names[:MAX_ACTIVE_PARAMETERS],
+                                })
+            graph = getattr(self, "_application_map", None)
+            if graph:
+                graph.add(page_url, "page", collected=True)
+                for form in parser.forms:
+                    graph.add(urljoin(page_url, form["action"]), "form", page_url, "contains_form", method=form["method"].upper())
             if page_has_password_form:
                 password_form_paths.append(parsed.path or "/")
+
+            for s_src in parser.scripts:
+                try:
+                    s_candidate = urljoin(page_url, s_src)
+                    s_parsed = urlparse(s_candidate)
+                    if self._web_origin(s_parsed) == origin and read_only_candidate(s_candidate) and s_candidate not in scripts_found:
+                        scripts_found.append(s_candidate)
+                except ValueError:
+                    continue
 
             if depth >= 2:
                 continue
@@ -702,7 +1282,7 @@ class WebAuditorAdapter(BaseToolAdapter):
                 # Do not crawl off-origin, credentialed, or non-web URLs.
                 # Query values are not stored in findings; deep scan replaces
                 # one parameter at a time with a synthetic test value.
-                if candidate_origin != origin:
+                if candidate_origin != origin or not read_only_candidate(candidate.geturl()):
                     continue
                 if candidate.username or candidate.password:
                     continue
@@ -736,58 +1316,93 @@ class WebAuditorAdapter(BaseToolAdapter):
             "http_password_forms": password_forms,
             "password_form_paths": list(dict.fromkeys(password_form_paths)),
             "input_points": input_points,
+            "scripts": list(dict.fromkeys(scripts_found))[:15],
+            "csrf_forms": csrf_vulnerable_forms[:10],
         }
 
-    def _check_cors(self, url: str, scan_id: Optional[str]) -> List[Finding]:
-        """Check for arbitrary-origin CORS reflection with a non-credentialed GET."""
-        probe_origin = "https://sentinel.invalid"
-        try:
-            response = self._bounded_get(url, timeout=6, headers={"Origin": probe_origin})
-        except requests.RequestException:
-            return []
-        allow_origin = response.headers.get("Access-Control-Allow-Origin", "").strip()
-        allow_credentials = response.headers.get("Access-Control-Allow-Credentials", "").strip().lower() == "true"
-        if allow_origin != probe_origin:
-            return []
-        confidence = FindingConfidence.HIGH if allow_credentials else FindingConfidence.MEDIUM
-        severity = FindingSeverity.HIGH if allow_credentials else FindingSeverity.LOW
-        condition = "with credentialed cross-origin access enabled" if allow_credentials else "without credentialed cross-origin access"
-        return [Finding(
-            scan_id=scan_id,
-            title="CORS policy reflects an arbitrary Origin",
-            description=(
-                "The server returned the caller-supplied Origin unchanged. This may allow an untrusted website to read responses; "
-                "impact depends on the protected data, credentials policy, and browser behavior. Sentinel sent no credentials."
-            ),
-            source_tool=self.name,
-            tool_version=self.version,
-            target=url,
-            severity=severity,
-            severity_source="Observed Access-Control-Allow-Origin response to a controlled Origin probe",
-            confidence=confidence,
-            confidence_justification=f"Access-Control-Allow-Origin reflected {probe_origin}; {condition}.",
-            status=FindingStatus.SCANNER_REPORTED,
-            evidence_raw=json.dumps({
-                "access_control_allow_origin": allow_origin,
-                "access_control_allow_credentials": allow_credentials,
-                "probe_origin": probe_origin,
-            }),
-            evidence_summary=f"Arbitrary Origin was reflected {condition}.",
-            cwe_id="CWE-942",
-            remediation="Allow only explicitly trusted origins and avoid credentialed CORS unless required; verify access from an untrusted browser origin.",
-        )]
+    def _check_cors(self, url, scan_id=None):
+        """Distinguish static allowlists from repeatable arbitrary-origin reflection."""
+        findings, observations = [], []
+        probes = ['https://' + secrets.token_hex(10) + '.invalid' for _ in range(2)]
+        for value in probes + ['null']:
+            self.session.cookies.clear()
+            try:
+                response = self._bounded_get(url, timeout=6, headers={'Origin': value})
+                observations.append({'origin': value, 'status': response.status_code,
+                    'allow_origin': response.headers.get('Access-Control-Allow-Origin', '').strip(),
+                    'allow_credentials': response.headers.get('Access-Control-Allow-Credentials', '').strip() == 'true'})
+            except requests.RequestException:
+                observations.append({'origin': value, 'status': None, 'allow_origin': '', 'allow_credentials': False})
+        reflected = all(row['status'] is not None and 200 <= row['status'] < 300 and row['allow_origin'] == row['origin'] for row in observations[:2])
+        null = observations[-1]
+        cases = []
+        if reflected:
+            cases.append(('CORS policy reflects arbitrary Origins on repeated probes', observations[:2]))
+        if null['status'] is not None and 200 <= null['status'] < 300 and null['allow_origin'] == 'null' and null['allow_credentials']:
+            cases.append(('CORS policy permits a credentialed null Origin', [null]))
+        for title, rows in cases:
+            credentials = all(row['allow_credentials'] for row in rows)
+            findings.append(Finding(scan_id=scan_id, title=title,
+                description='An anonymous successful response advertised a permissive CORS policy. Protected-data access, cookie eligibility and browser readability were not demonstrated. This policy observation is not a confirmed data breach.',
+                source_tool=self.name, tool_version=self.version, target=map_safe_url(url),
+                severity=FindingSeverity.MEDIUM if credentials else FindingSeverity.LOW,
+                severity_source='Observed CORS policy; protected response impact remains unverified',
+                confidence=FindingConfidence.HIGH, confidence_justification='Two unpredictable origins must both reflect exactly; fixed allowlists do not qualify. Null-origin policy is recorded separately.',
+                status=FindingStatus.POTENTIAL, cwe_id='CWE-942',
+                evidence_raw=json.dumps({'observations': rows, 'credentials_sent': False, 'browser_read_verified': False,
+                    'reproduction_steps': ['Repeat anonymous GET with each recorded Origin header.', 'Confirm expected application policy and test browser readability with an authorized synthetic session.'],
+                    'expected': 'Only explicitly trusted origins can read protected responses.', 'observed': 'Recorded response policy accepts the controlled origin values.',
+                    'limitations': 'No protected response body retained, no credentials sent, and no browser data-read proof.'}),
+                evidence_summary='CORS policy reproduced anonymously; credentialed data access is unverified.',
+                remediation='Allow only trusted origins, use Vary: Origin where responses vary, and validate actual protected-data access with authorized test accounts.'))
+        return findings
+
+    def _verify_template_arithmetic(self, original, pairs, parameter, scan_id, safe_target):
+        """Require two independent benign arithmetic challenges, not a fixed number."""
+        for opening, closing, label in [('{{', '}}', 'double braces'), ('${', '}', 'dollar braces'), ('<%=', '%>', 'template expression')]:
+            proofs = []
+            for _ in range(2):
+                left, right = 31 + secrets.randbelow(60), 101 + secrets.randbelow(70)
+                prefix = INPUT_PROBE_MARKER + secrets.token_hex(8) + ':'
+                expression = opening + f'{left}*{right}' + closing
+                probe = prefix + expression
+                url = urlunparse(original._replace(query=urlencode([(name, probe if name == parameter else value) for name, value in pairs], doseq=True)))
+                try:
+                    response = self._bounded_get(url, timeout=5)
+                    text = _probe_text(response)
+                    expected = prefix + str(left * right)
+                    if not (200 <= response.status_code < 300 and expected in text and probe not in text):
+                        break
+                    proofs.append({'input': probe, 'expected': expected, 'observed': expected, 'status': response.status_code})
+                except requests.RequestException:
+                    break
+            if len(proofs) == 2:
+                return [Finding(scan_id=scan_id, title=f'Reproducible Server-Side Template Injection arithmetic indicator ({label})',
+                    description='Two unique arithmetic challenges were transformed into the expected products in HTTP response bodies. This supports server-side expression evaluation; template-engine identity, code execution and business impact have not been established.',
+                    source_tool=self.name, tool_version=self.version, target=safe_target, severity=FindingSeverity.HIGH,
+                    severity_source='Independent benign arithmetic transformations; exploit impact unverified',
+                    confidence=FindingConfidence.HIGH, confidence_justification='Two random prefixes and operands matched computed products; literal reflection and fixed sample numbers do not qualify.',
+                    status=FindingStatus.POTENTIAL, cwe_id='CWE-1336',
+                    evidence_raw=json.dumps({'parameter': parameter, 'challenges': proofs,
+                        'reproduction_steps': ['Replay both harmless recorded query values on the authorized endpoint.', 'Confirm products are server-rendered and determine whether template source receives untrusted input.'],
+                        'limitations': 'No command execution, filesystem access or exploit-impact confirmation was attempted.'}),
+                    evidence_summary='Two independent arithmetic evaluations reproduced; exploit impact unverified.',
+                    remediation='Pass input as template data rather than concatenating it into template source. Validate the template context and retest both challenges after remediation.')]
+        return []
 
     def _probe_query_parameters(
         self,
         input_points: List[Dict[str, Any]],
-        scan_id: Optional[str],
-        progress_callback: Optional[Any],
+        scan_id: Optional[str] = None,
+        progress_callback: Optional[Any] = None,
     ) -> List[Finding]:
         """Run capped, non-destructive GET probes on discovered query parameters."""
         findings: List[Finding] = []
         tested = 0
         browser_verifier = BrowserXSSVerifier()
         for point in input_points:
+            if not read_only_candidate(point["url"]):
+                continue
             original = urlparse(point["url"])
             pairs = parse_qsl(original.query, keep_blank_values=True)
             for parameter in point["names"]:
@@ -809,9 +1424,10 @@ class WebAuditorAdapter(BaseToolAdapter):
                 body = _probe_text(response)
 
                 if "text/html" in content_type and probe_value in body:
+                    refl_analysis = HTMLReflectionContextAnalyzer.analyze(body, probe_value)
                     findings.append(Finding(
                         scan_id=scan_id,
-                        title="Potential unescaped reflected input",
+                        title="Reflected XSS Candidate in Executable HTML Context" if refl_analysis.recommends_alert else "Reflected Input in Inert HTML Context",
                         description=(
                             "A unique inert HTML marker supplied through a query parameter was returned unescaped in an HTML response. "
                             "This is an XSS candidate, not proof of script execution; browser context and client-side handling require review."
@@ -820,18 +1436,21 @@ class WebAuditorAdapter(BaseToolAdapter):
                         tool_version=self.version,
                         target=safe_target,
                         severity=FindingSeverity.MEDIUM,
-                        severity_source="Reflected inert marker in text/html response",
+                        severity_source=f"DOM Reflection Context: {refl_analysis.context.value}",
                         confidence=FindingConfidence.MEDIUM,
-                        confidence_justification="The exact random probe marker, including raw angle brackets, appeared in the response HTML; no script payload was sent or executed.",
+                        confidence_justification=refl_analysis.details,
                         status=FindingStatus.SCANNER_REPORTED,
                         evidence_raw=json.dumps({"parameter": parameter[:80], "marker_reflected_raw": True,
                                                  "verification_method": "inert_marker_reflection", "script_execution_verified": False,
                                                  "response_sha256": hashlib.sha256(response.content).hexdigest()}),
-                        evidence_summary=f"An inert marker was reflected without HTML escaping for parameter {parameter[:80]!r}; manually verify its output context.",
+                        evidence_summary=f"Reflected in {refl_analysis.context.value} context ({'breakout possible' if refl_analysis.can_break_out else 'safely enclosed'}).",
                         cwe_id="CWE-79",
                         remediation="Apply context-aware output encoding and validate the sink in a browser; do not rely on input filtering alone.",
                     ))
                     candidate = findings[-1]
+                    candidate.severity = refl_analysis.suggested_severity
+                    candidate.confidence = refl_analysis.suggested_confidence
+                    candidate.status = FindingStatus.SCANNER_REPORTED if refl_analysis.recommends_alert else FindingStatus.OBSERVED
                     if len(self._browser_checks) < MAX_BROWSER_CANDIDATES:
                         if progress_callback:
                             progress_callback("Verifying reflected input in an isolated browser…")
@@ -884,11 +1503,545 @@ class WebAuditorAdapter(BaseToolAdapter):
                         cwe_id="CWE-209",
                         remediation="Use parameterized queries and return generic client errors while logging detailed exceptions server-side.",
                     ))
+
+                # Check for Open Redirect on redirect-like parameters
+                if re.search(r"(?i)^(redirect|redirect_uri|redir|url|next|return|return_to|dest|destination|target|to|uri|link|forward|out)$", parameter):
+                    redir_target = "https://sentinel.invalid/probe/" + secrets.token_hex(10)
+                    redir_pairs = [(name, redir_target if name == parameter else value) for name, value in pairs]
+                    redir_url = urlunparse(original._replace(query=urlencode(redir_pairs, doseq=True)))
+                    try:
+                        redir_resp = self._bounded_get(redir_url, timeout=5)
+                        if redir_resp.status_code in {301, 302, 303, 307, 308}:
+                            loc = redir_resp.headers.get("Location", "")
+                            if loc == redir_target:
+                                findings.append(Finding(
+                                    scan_id=scan_id,
+                                    title=f"Validated Open Redirect via Parameter '{parameter}'",
+                                    description=(
+                                        f"Parameter '{parameter}' triggers an immediate HTTP {redir_resp.status_code} redirect to external domain: '{loc}'. "
+                                        "Attackers can leverage this to create convincing phishing vectors using this trusted domain."
+                                    ),
+                                    source_tool=self.name,
+                                    tool_version=self.version,
+                                    target=safe_target,
+                                    severity=FindingSeverity.MEDIUM,
+                                    severity_source=f"Observed HTTP {redir_resp.status_code} redirect to external probe target",
+                                    confidence=FindingConfidence.CONFIRMED,
+                                    confidence_justification="Location header reflects the untrusted external domain probe",
+                                    status=FindingStatus.VALIDATED,
+                                    evidence_raw=json.dumps({"parameter": parameter, "status_code": redir_resp.status_code, "location": loc}),
+                                    evidence_summary=f"Parameter {parameter} redirected to probe target ({redir_resp.status_code} -> {loc})",
+                                    cwe_id="CWE-601",
+                                    remediation="Use a whitelist of allowed relative URLs or validate destination against trusted same-origin paths.",
+                                ))
+                    except requests.RequestException:
+                        pass
+
+                findings.extend(self._verify_template_arithmetic(original, pairs, parameter, scan_id, safe_target))
+
+                if re.search(r"(?i)^(id|user_id|uid|account_id|order_id|invoice_id|tenant_id|url|webhook|fetch|proxy)$", parameter):
+                    self._untested_checks = getattr(self, "_untested_checks", [])
+                    self._untested_checks.append({"path": original.path, "parameter": parameter,
+                        "outcome": "NOT_TESTED", "reason": "Object ownership needs declared synthetic identities/resources; SSRF needs explicitly approved callback infrastructure. No adjacent-ID or server-loopback probe sent."})
+
+                # Path Traversal probe on file/path parameters
+                if re.search(r"(?i)^(file|filename|filepath|path|doc|document|page|template|view|include|folder|dir|log)$", parameter):
+                    pt_probe = "....//....//....//etc/passwd"
+                    pt_pairs = [(name, pt_probe if name == parameter else value) for name, value in pairs]
+                    pt_url = urlunparse(original._replace(query=urlencode(pt_pairs, doseq=True)))
+                    try:
+                        pt_resp = self._bounded_get(pt_url, timeout=5)
+                        pt_text = _probe_text(pt_resp)
+                        if "root:x:0:0:" in pt_text or "root:*:0:0:" in pt_text:
+                            findings.append(Finding(
+                                scan_id=scan_id,
+                                title=f"Validated Path Traversal (Arbitrary File Read) in Parameter '{parameter}'",
+                                description=f"Supplying directory traversal sequence into parameter '{parameter}' exposed server system file content.",
+                                source_tool=self.name,
+                                tool_version=self.version,
+                                target=safe_target,
+                                severity=FindingSeverity.CRITICAL,
+                                severity_source="Direct observation of system file contents (/etc/passwd) in response body",
+                                confidence=FindingConfidence.CONFIRMED,
+                                confidence_justification="Response contained authentic /etc/passwd root account entry",
+                                status=FindingStatus.VALIDATED,
+                                evidence_raw=json.dumps({"parameter": parameter, "probe": pt_probe, "evidence": "root:x:0:0:[REDACTED]"}),
+                                evidence_summary=f"Parameter '{parameter}' allowed arbitrary file read via traversal sequence.",
+                                cwe_id="CWE-22",
+                                remediation="Validate user-supplied filenames against a strict whitelist or resolve absolute paths and verify they reside within the designated base directory.",
+                            ))
+                        elif any(err in pt_text.lower() for err in ("open_basedir restriction in effect", "failed to open stream", "directory traversal", "illegal path characters")):
+                            findings.append(Finding(
+                                scan_id=scan_id,
+                                title=f"Potential Path Traversal Indicator in Parameter '{parameter}'",
+                                description=f"Parameter '{parameter}' returned a file-system or path-handling error message when tested with traversal sequences.",
+                                source_tool=self.name,
+                                tool_version=self.version,
+                                target=safe_target,
+                                severity=FindingSeverity.MEDIUM,
+                                severity_source="File system error signature in response to traversal probe",
+                                confidence=FindingConfidence.MEDIUM,
+                                confidence_justification="Response contained open_basedir or stream error indicating dynamic file resolution.",
+                                status=FindingStatus.POTENTIAL,
+                                evidence_raw=json.dumps({"parameter": parameter, "probe": pt_probe}),
+                                evidence_summary=f"Path handling error disclosed for parameter '{parameter}'.",
+                                cwe_id="CWE-22",
+                                remediation="Avoid passing user input directly to filesystem APIs; use an indirect mapping table or validated basename.",
+                            ))
+                    except requests.RequestException:
+                        pass
+
+                # HTTP Header Injection / CRLF probe on redirect parameters
+                if re.search(r"(?i)^(redirect|redirect_uri|redir|url|next|return|return_to|dest|destination|target|to|uri|link|forward|out)$", parameter):
+                    crlf_nonce = secrets.token_hex(10)
+                    crlf_probe = f"sentinel%0d%0aSet-Cookie:%20sentinel_crlf_probe={crlf_nonce}"
+                    crlf_pairs = [(name, crlf_probe if name == parameter else value) for name, value in pairs]
+                    crlf_url = urlunparse(original._replace(query=urlencode(crlf_pairs, doseq=True)))
+                    try:
+                        crlf_resp = self._bounded_get(crlf_url, timeout=5)
+                        if any(f"sentinel_crlf_probe={crlf_nonce}" in v for v in crlf_resp.headers.get("Set-Cookie", "").split(",")):
+                            findings.append(Finding(
+                                scan_id=scan_id,
+                                title=f"HTTP Response Splitting / Header Injection in Parameter '{parameter}'",
+                                description=(
+                                    f"Injected CRLF sequences (%0d%0a) into parameter '{parameter}' resulted in an arbitrary 'Set-Cookie' header "
+                                    "being injected into the server's HTTP response. This enables session fixation, XSS, and cache poisoning."
+                                ),
+                                source_tool=self.name,
+                                tool_version=self.version,
+                                target=safe_target,
+                                severity=FindingSeverity.HIGH,
+                                severity_source="Observed Set-Cookie header injected via CRLF in query parameter",
+                                confidence=FindingConfidence.CONFIRMED,
+                                confidence_justification="Response headers reflected the injected Set-Cookie directive",
+                                status=FindingStatus.VALIDATED,
+                                evidence_raw=json.dumps({"parameter": parameter, "injected_header": "Set-Cookie: sentinel_crlf_probe=1"}),
+                                evidence_summary=f"CRLF injection in parameter '{parameter}' successfully injected HTTP response headers.",
+                                cwe_id="CWE-113",
+                                remediation="Strip CR (%0d, \\r) and LF (%0a, \\n) characters from user inputs before incorporating them into HTTP headers or redirect locations.",
+                            ))
+                    except requests.RequestException:
+                        pass
+        return findings
+
+    def _audit_javascript_assets(self, base_url, script_urls=None, scan_id=None, progress_callback=None, *, scripts=None):
+        from src.adapters.javascript_assets import audit_assets
+        return audit_assets(self, base_url, script_urls if script_urls is not None else scripts or [], scan_id, progress_callback)
+
+    def _audit_subdomains(self, domain: str, scan_id: Optional[str] = None, progress_callback: Optional[Any] = None) -> List[Finding]:
+        """Passive certificate transparency asset discovery via crt.sh without target traffic."""
+        if not domain or domain in {"localhost", "127.0.0.1"} or re.fullmatch(r"\d+\.\d+\.\d+\.\d+", domain):
+            return []
+
+        parts = domain.lower().split(".")
+        if len(parts) < 2:
+            return []
+
+        apex = domain.lower().rstrip(".")  # Do not infer a registrable domain by taking two labels.
+        if progress_callback:
+            progress_callback(f"Querying passive Certificate Transparency logs for {apex}...")
+
+        subdomains: set[str] = set()
+        try:
+            ct_url = f"https://crt.sh/?q=%.{apex}&output=json"
+            with requests.Session() as passive_http:
+                passive_http.trust_env = False
+                resp = passive_http.get(ct_url, timeout=(3, 7), allow_redirects=False, stream=True,
+                                        headers={"User-Agent": "QolamHacker-CT/1.0"})
+                try:
+                    raw = resp.raw.read(1_000_001, decode_content=True)
+                finally:
+                    resp.close()
+                if not isinstance(raw, bytes) or len(raw) > 1_000_000:
+                    return []
+            if resp.status_code == 200:
+                entries = json.loads(raw)
+                if isinstance(entries, list):
+                    for entry in entries[:200]:
+                        name_value = entry.get("name_value", "")
+                        for name in name_value.split("\n"):
+                            name = name.strip().lower()
+                            if name.startswith("*."):
+                                name = name[2:]
+                            if (name.endswith(f".{apex}") or name == apex) and re.fullmatch(r"[a-z0-9][a-z0-9.-]*\.[a-z]{2,}", name):
+                                subdomains.add(name)
+        except Exception:
+            return []
+
+        if subdomains:
+            sorted_subs = sorted(subdomains)[:40]
+            return [
+                Finding(
+                    scan_id=scan_id,
+                    title=f"Discovered {len(subdomains)} Subdomain Assets via Certificate Transparency for {apex}",
+                    description=(
+                        f"Passive Certificate Transparency log enumeration discovered {len(subdomains)} subdomains for '{apex}':\n\n"
+                        + "\n".join(f"• {s}" for s in sorted_subs[:25])
+                        + (f"\n... and {len(sorted_subs) - 25} more" if len(sorted_subs) > 25 else "")
+                        + "\n\nImportant: Verify engagement authorization and program scope before performing any active assessment against these discovered assets."
+                    ),
+                    source_tool=self.name,
+                    tool_version=self.version,
+                    target=apex,
+                    severity=FindingSeverity.INFO,
+                    severity_source="Certificate Transparency (crt.sh)",
+                    confidence=FindingConfidence.CONFIRMED,
+                    confidence_justification=f"Retrieved authentic TLS certificate records from public Certificate Transparency logs for apex {apex}",
+                    status=FindingStatus.OBSERVED,
+                    evidence_raw=json.dumps({"apex": apex, "count": len(subdomains), "subdomains": sorted_subs, "source": "https://crt.sh/", "active_testing_authorized": False}, ensure_ascii=False),
+                    evidence_summary=f"Found {len(subdomains)} subdomains via public CT logs; active traffic was not sent to subdomains.",
+                    remediation="Audit external-facing assets regularly to identify forgotten development subdomains, exposed admin consoles, and dangling CNAME records.",
+                )
+            ]
+        return []
+
+    def _audit_jwt_tokens(
+        self,
+        base_url: str,
+        cookies: Any,
+        headers: Any,
+        scripts_content: List[str],
+        scan_id: Optional[str] = None,
+    ) -> List[Finding]:
+        """Inspect discovered JWTs across headers, cookies, and scripts for security weaknesses."""
+        findings = []
+        jwt_candidates: set[str] = set()
+
+        # Check headers (Authorization, Set-Cookie, etc.)
+        for h_key, h_val in headers.items():
+            for match in re.findall(r"\b(eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*)(?![A-Za-z0-9_-])", str(h_val)):
+                jwt_candidates.add(match)
+
+        # Check cookies
+        for cookie in cookies:
+            c_val = getattr(cookie, "value", "")
+            for match in re.findall(r"\b(eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*)(?![A-Za-z0-9_-])", str(c_val)):
+                jwt_candidates.add(match)
+
+        # Check frontend scripts
+        for script_text in scripts_content:
+            for match in re.findall(r"\b(eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*)(?![A-Za-z0-9_-])", str(script_text)):
+                jwt_candidates.add(match)
+
+        def _b64url_json(segment: str) -> Optional[dict]:
+            import base64
+            padded = segment + "=" * ((4 - len(segment) % 4) % 4)
+            try:
+                decoded = base64.urlsafe_b64decode(padded)
+                obj = json.loads(decoded)
+                return obj if isinstance(obj, dict) else None
+            except Exception:
+                return None
+
+        audited_tokens = 0
+        for token in sorted(jwt_candidates):
+            if audited_tokens >= 5:
+                break
+            audited_tokens += 1
+            parts = token.split(".")
+            if len(parts) < 2:
+                continue
+            hdr = _b64url_json(parts[0])
+            payload = _b64url_json(parts[1])
+            if not hdr or not payload:
+                continue
+
+            # 1. alg: none vulnerability
+            alg = str(hdr.get("alg", "")).strip().lower()
+            if alg == "none":
+                findings.append(Finding(
+                    scan_id=scan_id,
+                    title=f"Critical Unsecured JWT with 'none' Algorithm Disclosed on {base_url}",
+                    description=(
+                        "A JSON Web Token (JWT) utilizing 'alg': 'none' was discovered. "
+                        "Tokens with 'none' algorithm lack digital signature verification, allowing attackers to forge arbitrary claims, roles, and user identities."
+                    ),
+                    source_tool=self.name,
+                    tool_version=self.version,
+                    target=base_url,
+                    severity=FindingSeverity.CRITICAL,
+                    severity_source="Decoded JWT header with alg: none",
+                    confidence=FindingConfidence.CONFIRMED,
+                    confidence_justification="JWT header explicitly declared 'alg': 'none'",
+                    status=FindingStatus.VALIDATED,
+                    evidence_raw=json.dumps({"header": hdr, "token_prefix": token[:20] + "...[REDACTED]"}),
+                    evidence_summary="JWT header declared alg: none without cryptographic signature.",
+                    cwe_id="CWE-327",
+                    remediation="Reject tokens with 'none' algorithm on the server and mandate strong asymmetric (RS256/ES256) or symmetric (HS256) algorithms.",
+                ))
+
+            # 2. Missing expiration (exp)
+            if "exp" not in payload:
+                findings.append(Finding(
+                    scan_id=scan_id,
+                    title=f"JWT Lacks Expiration Claim ('exp') on {base_url}",
+                    description=(
+                        "The discovered JSON Web Token (JWT) does not declare an 'exp' (expiration time) claim. "
+                        "Without an expiration timestamp, compromised tokens remain valid indefinitely."
+                    ),
+                    source_tool=self.name,
+                    tool_version=self.version,
+                    target=base_url,
+                    severity=FindingSeverity.LOW,
+                    severity_source="Decoded JWT payload missing exp claim",
+                    confidence=FindingConfidence.CONFIRMED,
+                    confidence_justification="Payload lacks 'exp' standard claim",
+                    status=FindingStatus.SCANNER_REPORTED,
+                    evidence_raw=json.dumps({"payload_keys": list(payload.keys())}),
+                    evidence_summary="JWT payload lacks 'exp' expiration claim.",
+                    cwe_id="CWE-613",
+                    remediation="Always set a short, reasonable expiration time ('exp') on session tokens.",
+                ))
+
+            # 3. Sensitive claims exposed in payload
+            sensitive_payload_keys = [k for k in payload if any(s in k.lower() for s in ("password", "passwd", "secret", "private", "hash", "ssn"))]
+            if sensitive_payload_keys:
+                findings.append(Finding(
+                    scan_id=scan_id,
+                    title=f"Sensitive Claims Disclosed in JWT Payload on {base_url}",
+                    description=(
+                        f"The JWT payload exposes sensitive internal field(s): {', '.join(sensitive_payload_keys)}. "
+                        "JWT payloads are only Base64URL-encoded (not encrypted) and are readable by anyone possessing the token."
+                    ),
+                    source_tool=self.name,
+                    tool_version=self.version,
+                    target=base_url,
+                    severity=FindingSeverity.MEDIUM,
+                    severity_source="Sensitive field identifiers in unencrypted JWT payload",
+                    confidence=FindingConfidence.HIGH,
+                    confidence_justification="JWT payload contains sensitive credentials or secret markers",
+                    status=FindingStatus.POTENTIAL,
+                    evidence_raw=json.dumps({"sensitive_keys": sensitive_payload_keys}),
+                    evidence_summary=f"JWT payload exposes sensitive field(s): {', '.join(sensitive_payload_keys)}",
+                    cwe_id="CWE-312",
+                    remediation="Do not store sensitive credentials, passwords, or internal secrets in unencrypted JWT payloads.",
+                ))
+
+            # 4. Dangerous Key ID (kid) pattern
+            kid = str(hdr.get("kid", ""))
+            if kid and ("../" in kid or ".." in kid or "'" in kid):
+                findings.append(Finding(
+                    scan_id=scan_id,
+                    title=f"Suspicious JWT Key ID ('kid') Pattern on {base_url}",
+                    description=f"The JWT header specifies a 'kid' containing directory traversal or punctuation patterns: '{kid[:30]}'.",
+                    source_tool=self.name,
+                    tool_version=self.version,
+                    target=base_url,
+                    severity=FindingSeverity.HIGH,
+                    severity_source="Directory traversal or injection pattern in JWT kid header",
+                    confidence=FindingConfidence.HIGH,
+                    confidence_justification="JWT kid header matched traversal pattern",
+                    status=FindingStatus.POTENTIAL,
+                    evidence_raw=json.dumps({"kid": kid[:40]}),
+                    evidence_summary=f"Suspicious kid header in JWT: {kid[:30]}",
+                    cwe_id="CWE-347",
+                    remediation="Validate 'kid' values against an allowlist of known key identifiers rather than using them directly in file or database lookups.",
+                ))
+
+        return findings
+
+    def _audit_csrf_forms(
+        self,
+        domain: str,
+        csrf_forms: List[Dict[str, Any]],
+        cookies: Any,
+        scan_id: Optional[str] = None,
+    ) -> List[Finding]:
+        """Audit discovered POST forms lacking anti-CSRF tokens."""
+        if not csrf_forms:
+            return []
+
+        # Check if cookies are set without SameSite=Strict
+        lax_or_none_cookies = []
+        for cookie in cookies:
+            samesite = getattr(cookie, "_rest", {}).get("samesite")
+            if hasattr(cookie, "has_nonstandard_attr") and cookie.has_nonstandard_attr("samesite"):
+                samesite = cookie.get_nonstandard_attr("samesite")
+            if not samesite or str(samesite).lower() not in {"strict"}:
+                lax_or_none_cookies.append(cookie.name)
+
+        if not lax_or_none_cookies and not csrf_forms:
+            return []
+
+        findings = []
+        sample_forms = csrf_forms[:5]
+        findings.append(Finding(
+            scan_id=scan_id,
+            title=f"State-Changing HTML Form Lacks Anti-CSRF Token on {domain}",
+            description=(
+                f"Sentinel identified {len(csrf_forms)} state-changing POST form(s) that do not include an anti-CSRF token "
+                f"(e.g. csrf, xsrf, _token). In addition, session cookies lack SameSite=Strict protection. "
+                "Attackers can induce authenticated users to submit unauthorized requests to these actions."
+            ),
+            source_tool=self.name,
+            tool_version=self.version,
+            target=f"https://{domain}",
+            severity=FindingSeverity.MEDIUM,
+            severity_source="HTML POST form without hidden CSRF token input field",
+            confidence=FindingConfidence.HIGH,
+            confidence_justification=f"Discovered {len(csrf_forms)} POST form(s) lacking anti-CSRF tokens in page crawl",
+            status=FindingStatus.SCANNER_REPORTED,
+            evidence_raw=json.dumps({"form_count": len(csrf_forms), "samples": sample_forms}),
+            evidence_summary=f"{len(csrf_forms)} POST form(s) without anti-CSRF token found on {domain}",
+            cwe_id="CWE-352",
+            remediation="Implement unpredictable, cryptographically strong anti-CSRF tokens for all state-changing POST forms and configure SameSite=Strict or Lax on session cookies.",
+        ))
+        return findings
+
+    def _audit_bfla_and_verbs(self, base_url, scan_id=None, progress_callback=None):
+        """Collect method inconsistency as a lead, never infer authorization from HEAD."""
+        findings = []
+        for route in ('/admin', '/api/admin', '/actuator', '/manage', '/api/users'):
+            target = urljoin(base_url, route)
+            try:
+                get = self._bounded_get(target, timeout=5)
+                if get.status_code not in {401, 403}:
+                    continue
+                head = self._bounded_get(target, timeout=5, method='HEAD')
+                if 200 <= head.status_code < 300:
+                    findings.append(Finding(scan_id=scan_id, title='HTTP method policy inconsistency (GET versus HEAD)',
+                        description='GET was denied while HEAD returned success. HEAD does not return a representation, so this alone does not demonstrate access to protected content or an authentication bypass.',
+                        source_tool=self.name, tool_version=self.version, target=target, severity=FindingSeverity.LOW,
+                        severity_source='Observed method-status difference; authorization impact unverified',
+                        confidence=FindingConfidence.MEDIUM, confidence_justification='Status difference reproduced; no protected content oracle or method-override POST was used.',
+                        status=FindingStatus.POTENTIAL, cwe_id='CWE-285',
+                        evidence_raw=json.dumps({'get_status': get.status_code, 'head_status': head.status_code,
+                            'protected_content_verified': False, 'method_override_post_sent': False,
+                            'reproduction_steps': ['Compare GET and HEAD on the recorded path.', 'Review method handling and establish protected-content exposure before claiming a bypass.']}),
+                        evidence_summary=f'GET {get.status_code}; HEAD {head.status_code}; protected-data access unverified.',
+                        remediation='Apply the intended access policy consistently. Determine whether the difference is only generic HEAD handling.'))
+            except requests.RequestException:
+                continue
+        return findings
+
+    def _audit_dependency_manifest(
+        self,
+        manifest_url: str,
+        manifest_type: str,
+        content: str,
+        scan_id: Optional[str] = None,
+    ) -> List[Finding]:
+        """Correlate exposed dependencies with known critical CVE advisories."""
+        findings = []
+        try:
+            data = json.loads(content)
+        except Exception:
+            return findings
+
+        deps = {}
+        if manifest_type == "package.json":
+            deps.update(data.get("dependencies", {}))
+            deps.update(data.get("devDependencies", {}))
+        elif manifest_type == "composer.json":
+            deps.update(data.get("require", {}))
+            deps.update(data.get("require-dev", {}))
+
+        KNOWN_VULNERABLE_PACKAGES = [
+            ("lodash", r"^[\^~]?(4\.(?:[0-9]|1[0-6])\.[0-9]+|4\.17\.(?:[0-9]|1[0-9]|20))$", "CVE-2021-23337", "Command Injection / Prototype Pollution in Lodash", "HIGH", "Upgrade to lodash 4.17.21 or newer."),
+            ("axios", r"^[\^~]?(0\.(?:[0-9]|1[0-9]|20)\.[0-9]+)$", "CVE-2020-28168", "Server-Side Request Forgery (SSRF) in Axios", "HIGH", "Upgrade to axios 0.21.1 or newer."),
+            ("log4j", r"^[\^~]?(2\.(?:[0-9]|1[0-6])\.[0-9]+)$", "CVE-2021-44228", "Apache Log4j2 JNDI RCE (Log4Shell)", "CRITICAL", "Upgrade to log4j 2.17.1 or newer."),
+            ("moment", r"^[\^~]?(2\.(?:[0-9]|1[0-9]|2[0-8])\.[0-9]+)$", "CVE-2022-31129", "Regular Expression Denial of Service (ReDoS) in Moment.js", "MEDIUM", "Upgrade to moment 2.29.4 or newer."),
+            ("minimist", r"^[\^~]?(0\.[0-9]+\.[0-9]+|1\.(?:[01])\.[0-9]+|1\.2\.[0-5])$", "CVE-2021-44906", "Prototype Pollution in Minimist", "HIGH", "Upgrade to minimist 1.2.6 or newer."),
+            ("jquery", r"^[\^~]?(1\.[0-9]+\.[0-9]+|2\.[0-9]+\.[0-9]+|3\.[0-4]\.[0-9]+)$", "CVE-2020-11022", "Cross-Site Scripting (XSS) in jQuery htmlPrefilter", "MEDIUM", "Upgrade to jQuery 3.5.0 or newer."),
+            ("jsonwebtoken", r"^[\^~]?([0-8]\.[0-9]+\.[0-9]+)$", "CVE-2022-23529", "Insecure Key Verification in JsonWebToken", "HIGH", "Upgrade to jsonwebtoken 9.0.0 or newer."),
+        ]
+
+        for pkg_name, ver_pattern, cve, title, sev_str, rem in KNOWN_VULNERABLE_PACKAGES:
+            if pkg_name in deps:
+                declared_ver = str(deps[pkg_name])
+                if re.match(ver_pattern, declared_ver):
+                    sev = FindingSeverity.CRITICAL if sev_str == "CRITICAL" else (FindingSeverity.HIGH if sev_str == "HIGH" else FindingSeverity.MEDIUM)
+                    findings.append(Finding(
+                        scan_id=scan_id,
+                        title=f"Known Vulnerable Dependency: {pkg_name} ({declared_ver}) - {cve}",
+                        description=(
+                            f"The public manifest at '{manifest_url}' declares dependency '{pkg_name}' version '{declared_ver}', "
+                            f"which is affected by {title} ({cve})."
+                        ),
+                        source_tool=self.name,
+                        tool_version=self.version,
+                        target=manifest_url,
+                        severity=sev,
+                        severity_source="Advisory Database Correlation",
+                        confidence=FindingConfidence.HIGH,
+                        confidence_justification=f"Manifest declares version '{declared_ver}' matching vulnerable pattern for {cve}",
+                        status=FindingStatus.SCANNER_REPORTED,
+                        evidence_raw=json.dumps({"manifest": manifest_url, "package": pkg_name, "version": declared_ver, "cve": cve}),
+                        evidence_summary=f"Vulnerable dependency {pkg_name}@{declared_ver} ({cve}) in {manifest_type}",
+                        cve_id=cve,
+                        affected_component=f"{pkg_name}@{declared_ver}",
+                        remediation=rem,
+                    ))
+        return findings
+
+    def _audit_api_data_exposure(
+        self,
+        base_url: str,
+        endpoints: List[str],
+        scan_id: Optional[str] = None,
+    ) -> List[Finding]:
+        """Inspect JSON responses from discovered API endpoints for sensitive field leakage."""
+        findings = []
+        tested_eps = 0
+        SENSITIVE_KEYS = ("password_hash", "pass_hash", "password_digest", "secret_key", "private_key", "social_security", "credit_card", "api_secret")
+
+        for ep in endpoints:
+            if tested_eps >= 6:
+                break
+            tested_eps += 1
+            full_url = urljoin(base_url, ep)
+            if map_origin(full_url) != map_origin(base_url) or not read_only_candidate(full_url):
+                continue
+            try:
+                resp = self._bounded_get(full_url, timeout=5)
+                if resp.status_code == 200 and "application/json" in resp.headers.get("Content-Type", "").lower():
+                    try:
+                        data = resp.json()
+                    except Exception:
+                        continue
+
+                    def _find_keys(obj: Any, keys: set[str], path: str = "") -> List[str]:
+                        matches = []
+                        if isinstance(obj, dict):
+                            for k, v in obj.items():
+                                curr_path = f"{path}.{k}" if path else k
+                                if any(s.lower() == k.lower() for s in keys) and v not in (None, "", False, "[REDACTED]", "***"):
+                                    matches.append(curr_path)
+                                matches.extend(_find_keys(v, keys, curr_path))
+                        elif isinstance(obj, list):
+                            for item in obj[:5]:
+                                matches.extend(_find_keys(item, keys, path))
+                        return matches
+
+                    leaked_fields = _find_keys(data, set(SENSITIVE_KEYS))
+                    if leaked_fields:
+                        findings.append(Finding(
+                            scan_id=scan_id,
+                            title=f"Excessive Data Exposure / Sensitive Fields in API at '{ep}'",
+                            description=(
+                                f"The API endpoint '{ep}' returned JSON containing sensitive internal field(s): {', '.join(leaked_fields[:5])}. "
+                                "Review whether these fields are intended for this caller. This observation does not establish mass assignment or object-ownership failure."
+                            ),
+                            source_tool=self.name,
+                            tool_version=self.version,
+                            target=full_url,
+                            severity=FindingSeverity.HIGH,
+                            severity_source="OWASP API Security Top 10 API3:2023 Broken Object Property Level Authorization",
+                            confidence=FindingConfidence.HIGH,
+                            confidence_justification=f"API JSON response contains sensitive key(s): {', '.join(leaked_fields[:5])}",
+                            status=FindingStatus.POTENTIAL,
+                            evidence_raw=json.dumps({"endpoint": ep, "sensitive_fields": leaked_fields[:8], "status_code": 200}),
+                            evidence_summary=f"Sensitive field(s) exposed in API response: {', '.join(leaked_fields[:5])}",
+                            cwe_id="CWE-200",
+                            remediation="Implement Data Transfer Objects (DTOs) or strict response filtering schemas to prevent internal properties from leaking to clients.",
+                        ))
+            except requests.RequestException:
+                continue
         return findings
 
     @staticmethod
     def _web_origin(parsed: Any) -> Optional[Tuple[str, str, int]]:
-        if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+        if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname or parsed.username is not None or parsed.password is not None:
             return None
         try:
             port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
@@ -981,6 +2134,21 @@ class WebAuditorAdapter(BaseToolAdapter):
             deep_scan=bool((options or {}).get("deep_scan", False)),
         )
 
+        findings = [Finding.from_dict(sanitize_data(item.to_dict())) for item in findings]
+        graph = getattr(self, "_application_map", None)
+        if graph:
+            snapshot = graph.snapshot()
+            scan_run.execution_log.append({"operation": "Application relationships", **snapshot})
+            if snapshot["nodes"]:
+                findings.append(Finding(scan_id=scan_run.id, title="Application relationship map",
+                    description="Same-origin pages, scripts, literal API routes and source maps linked to discovery provenance. References do not prove reachability or authorization.",
+                    source_tool=self.name, target=safe_target, severity=FindingSeverity.INFO,
+                    severity_source="Observed application relationships", confidence=FindingConfidence.HIGH,
+                    confidence_justification="Discovery sources retained with redacted query values.", status=FindingStatus.OBSERVED,
+                    evidence_raw=json.dumps(snapshot), evidence_summary=f"{len(snapshot['nodes'])} nodes; {len(snapshot['relationships'])} relationships; truncated={snapshot['truncated']}",
+                    remediation="Review discovered components against the agreed scope and declared access expectations."))
+        if getattr(self, "_untested_checks", None):
+            scan_run.execution_log.append({"operation": "Declared-scenario coverage gaps", "checks": self._untested_checks[:40]})
         scan_run.execution_log.append({
             "operation": "Browser XSS verification", "checks": self._browser_checks,
             "request_count": sum(item["request_count"] for item in self._browser_checks),

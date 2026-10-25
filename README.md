@@ -1,96 +1,100 @@
-<p align="center"><img src="assets/sentinel.png" width="108" alt="ATTACK WEBSITE TOOLS shield and infinity logo"></p>
-<h1 align="center">ATTACK WEBSITE TOOLS</h1>
-<p align="center">Web Penetration Testing for Windows · Browser evidence · Word reports</p>
+<p align="center"><img src="assets/sentinel.png" width="100" alt="Qolam_Hacker logo"></p>
+<h1 align="center">Qolam_Hacker</h1>
+<p align="center"><strong>Web Penetration Testing for Windows</strong><br>Website and API assessment, browser XSS evidence, and reports you can hand to a client.</p>
 <p align="center">
-<a href="https://github.com/III85III/attack-website-tools/releases/tag/v0.19.0"><strong>Download Windows</strong></a> ·
-<a href="docs/USER_GUIDE_EN.md">User guide</a> ·
-<a href="docs/SECURITY_MODEL.md">Security model</a> ·
-<a href="https://github.com/III85III/attack-website-tools/issues/new/choose">Report a bug</a>
+<a href="https://github.com/III85III/attack-website-tools/releases/tag/v0.19.1"><strong>Download Windows app</strong></a> ·
+<a href="docs/USER_GUIDE_EN.md">Full user guide</a> ·
+<a href="docs/DEPTH_COVERAGE_AUDIT.md">Coverage and test evidence</a> ·
+<a href="https://github.com/III85III/attack-website-tools/issues/new/choose">Report an issue</a>
 </p>
 <p align="center">
 <a href="https://github.com/III85III/attack-website-tools/actions/workflows/windows.yml"><img src="https://github.com/III85III/attack-website-tools/actions/workflows/windows.yml/badge.svg" alt="Windows checks"></a>
-<img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white" alt="Python 3.11">
-<img src="https://img.shields.io/badge/Platform-Windows_x64-0b78b4" alt="Windows x64">
-<a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0--only-blue" alt="GPL-3.0-only"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="GPL-3.0-only"></a>
+<img src="https://img.shields.io/badge/release-0.19.1_RC-167c8a" alt="0.19.1 release candidate">
 </p>
 
-**0.19.0 release candidate** · English interface · Persian Word reports and structured JSON · Runs on your computer
+Enter an authorized website URL, select **Scan Website**, then review the evidence and export your report. Qolam_Hacker combines a native web assessment with browser-confirmed reflected XSS, JavaScript and API discovery, and explicit test-account access checks. It runs on your computer and supports authorized public websites.
 
-Enter a website URL, run an assessment and turn the results into a Word report. ATTACK WEBSITE TOOLS brings website checks, browser-confirmed reflected XSS, documented API review and test-account access checks into one Windows desktop app. Each finding keeps its evidence, severity and validation status.
+![Qolam_Hacker scanner interface](docs/images/scanner.png)
 
-Built for websites you own or have written permission to assess, including public websites.
+## Install and run
 
-![Version 0.19.0 Windows interface](docs/images/scanner.png)
+1. Open the [0.19.1 release](https://github.com/III85III/attack-website-tools/releases/tag/v0.19.1).
+2. Download **`III85III_MIRAGE_SENTINEL_0.19.1_Windows-x64.zip`**. GitHub's automatic source-code archive is not the ready-to-run application.
+3. Extract the **entire ZIP** into a normal folder.
+4. Open **`Qolam_Sentinel.exe`**. Keep `_internal` beside it. Python is not required.
+5. Read the first-launch notice, enter your authorized URL, then select **Scan Website**.
 
-## Start in three steps
+The ZIP and executable retain their earlier filenames for compatibility. The app's displayed name is **Qolam_Hacker**.
 
-1. Download `III85III_MIRAGE_SENTINEL_0.19.0_Windows-x64.zip` from [Releases](https://github.com/III85III/attack-website-tools/releases/tag/v0.19.0).
-2. Extract the **whole** ZIP. Keep `_internal` beside `Qolam_Sentinel.exe`.
-3. Run `Qolam_Sentinel.exe`, enter your authorized website URL and select **Scan Website**.
+Use Windows x64. Browser confirmation needs a normally installed, signed Microsoft Edge or Google Chrome. Optional ZAP and Nmap are installed separately; the app reports when they are unavailable.
 
-The current 0.19.0 executable and ZIP retain the earlier Sentinel name shown in the screenshot. This repository is now called ATTACK WEBSITE TOOLS; the download is the same verified build.
+### Verify the download
 
-Python is not required for the portable package. Browser confirmation requires a normally installed, signed Microsoft Edge or Google Chrome. Nmap and OWASP ZAP are separate optional products.
+Download `SHA256SUMS_0.19.1.txt` from the same release. In PowerShell, run this from your download folder:
 
-Verify the download with `SHA256SUMS_0.19.0.txt`. The package includes matching application source, collected dependency licenses and per-file hashes.
+```powershell
+Get-FileHash .\III85III_MIRAGE_SENTINEL_0.19.1_Windows-x64.zip -Algorithm SHA256
+```
 
-## What you can check
+Compare the full result with the matching ZIP entry in the checksum file. The build is unsigned. A checksum checks integrity; it is not a signing certificate.
+
+## What the scan does
 
 | Area | Current behavior |
 |---|---|
-| Website review | Bounded same-origin crawl, transport, headers, cookies, selected exposures, CORS and query-input checks |
-| Browser XSS confirmation | A unique benign computation must execute in the main document before an eligible reflected-input finding becomes validated |
-| OpenAPI / Swagger | Import OpenAPI 3.0/3.1 or Swagger 2.0 JSON; discover unlinked API routes and assess documented GET inputs |
-| Session and access expectations | Compare explicit read-only paths using a primary test session, optional second account and anonymous access |
-| Optional local engines | Origin-scoped ZAP integration and Nmap checks on ports 80, 443, 8080 and 8443 when available |
-| Report import | Supported Nuclei JSON/JSONL, SARIF, JSON and Nmap-compatible XML, with source provenance |
-| Reporting | Assessment-linked Word/JSON exports, evidence status, remediation and visible incomplete coverage |
+| Website review | Bounded same-origin crawl, headers, cookies, selected exposures and controlled query checks |
+| Reflected XSS | Eligible candidates need matching execution proof in a sandboxed browser before they become validated |
+| JavaScript | Literal API route discovery, source-to-sink candidates, parsed source maps and redacted credential-shaped values |
+| Application mapping | Pages, forms, scripts, routes and source maps with discovery relationships and redacted query values |
+| CORS | Two unpredictable origin probes distinguish arbitrary reflection from a fixed allowlist; data theft is not inferred |
+| Template evaluation | Two independent benign arithmetic challenges distinguish evaluated input from reflection or fixed example output |
+| API definitions | Automatic discovery or import of OpenAPI 3.0/3.1 and Swagger 2.0 JSON; bounded anonymous GET review |
+| Access expectations | Compare supplied test identities and explicit read-only resources with anonymous controls and repeated observations |
+| External tools | Existing origin-scoped ZAP and bounded Nmap integrations when available; compatible third-party report imports |
+| Reports | **Word, HTML, Markdown and JSON**, linked to the selected assessment and its engine runs |
 
-Use **Assessment setup** for session rules or an API definition. Supplied sessions stay in memory and are not forwarded to browser XSS checks, ZAP or Nmap.
+One button runs the available pipeline. **Right-click Scan Website** for optional test-account sessions or a manual API definition. Credentials, ownership and business rules cannot be inferred from a URL. Supplying these expectations enables checks that an anonymous scan cannot perform.
 
-### Evidence has a status
+Passive certificate-transparency results are discovery leads with provenance. Finding a subdomain does not grant authorization to scan it. See the [coverage audit](docs/DEPTH_COVERAGE_AUDIT.md) for implementation details and boundaries.
 
-- **Validated:** observed native browser execution proof or an assessor's recorded validation; inspect the method and evidence.
-- **Scanner reported / potential:** a candidate requiring further validation.
-- **Not tested / inconclusive:** a coverage gap or unsuccessful check, never a declaration of safety.
+## Read the results
 
-The website engine covers up to 25 same-origin pages and ten query parameters. The API engine attempts up to 20 concrete GET operations and ten query parameters. Each engine has a three-candidate browser budget. Limits and actual request counts are recorded.
+- **Validated:** a recorded verification method supports the observed behavior. Read its evidence and limits.
+- **Potential / scanner reported:** investigate the candidate before presenting it as a confirmed vulnerability.
+- **Observed:** an inventory or configuration fact that may be intentional.
+- **Partial / failed / not tested:** coverage was limited; this is not a clean bill of health.
 
-Stored/blind XSS, exhaustive DOM analysis, POST/JSON execution and full business-workflow testing are outside the current automated coverage. A clean scan does not establish that a website is secure. See the [security model](docs/SECURITY_MODEL.md).
+Open a finding to review its source, confidence, evidence and remediation. New policy findings include repeatable checks and verification limits. Before sending a report, confirm the target and assessment, then review it for confidential URLs, imported evidence or other customer data.
 
-## What has been verified
+A changing response size, a successful HEAD request or a public source map does not by itself prove an authorization bypass. The app does not automatically guess adjacent object IDs, send server-loopback SSRF probes, try credentials or execute real business transactions.
 
-The local Windows source suite passed **227 tests**. Packaged verification exercised five API/Word scenarios, three browser scenarios and four supplied-session scenarios against disposable loopback servers.
+## Verification
 
-The frozen application generated and reopened real DOCX files, persisted findings and exported JSON. Executing XSS was distinguished from encoded and CSP-blocked input. Recorded requests were compared with server-observed requests.
+The current Windows source suite passed **270 tests**. The built EXE also completed a disposable loopback assessment with **31 recorded requests matching 31 server-observed requests**. Packaged checks verified application mapping, structured source-map collection, token redaction, repeatable template-arithmetic evidence, SQLite persistence, JSON export and actual Word generation/reopening.
 
-[Verification record](docs/verification/VERIFICATION_0.19.0.json) · [Release notes](docs/RELEASE_NOTES_0.19.0.md) · [Release checklist](docs/RELEASE_CHECKLIST.md)
+The labeled static JavaScript subset has **13 cases: 4 true positives, 9 true negatives, 0 false positives and 0 false negatives**. That measures only this small corpus, not general website detection accuracy.
 
-This is an unsigned release candidate. Clean-machine compatibility, completed visual Word layout review and an independent security audit are not claimed.
+[Verification record](docs/verification/VERIFICATION_0.19.1.json) · [Exact changed files and coverage gaps](docs/DEPTH_COVERAGE_AUDIT.md) · [Release notes](docs/RELEASE_NOTES_0.19.1.md)
 
-## Your data and testing scope
-
-Use the app only within your written authorization and agreed scope. Active probes can affect a target. The responsible-use notice does not grant target access.
-
-Scan history and reports remain on the computer. Exported reports can contain sensitive target information: review and redact them before sharing. Never attach test-session cookies, Bearer tokens, API keys, database files or raw traffic captures to a public issue. There is no Sentinel cloud analysis or telemetry service. Optional online speech sends selected text to Microsoft's speech service only after confirmation; local Windows SAPI remains available.
-
-## Need help?
-
-See the [complete user guide](docs/USER_GUIDE_EN.md) for installation, a first scan, API definitions, test sessions, report exports and troubleshooting. Use [bug reports](https://github.com/III85III/attack-website-tools/issues/new/choose) for app problems and [private reporting](https://github.com/III85III/attack-website-tools/security/advisories/new) for vulnerabilities in this project.
+This is an unsigned release candidate. A completed visual Word layout audit, independent security audit and universal detection coverage are not claimed. Complex business logic, full session lifecycle, stored/blind XSS and exhaustive dynamic JavaScript analysis still need explicit assessment scenarios and manual review.
 
 ## Run from source
 
-Requires Windows x64 and Python 3.11:
+Use Windows x64 and Python 3.11. For the source matching the release:
 
 ```powershell
+git clone https://github.com/III85III/attack-website-tools.git
+cd attack-website-tools
+git checkout v0.19.1
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe main.py
 ```
 
-Run `.\.venv\Scripts\python.exe -m pytest tests -q`. Browser integration checks need a signed system Edge/Chrome.
+Run the regression suite with `.\.venv\Scripts\python.exe -m pytest tests -q`. Browser tests require a trusted system Edge/Chrome and use disposable loopback targets.
 
-## Build
+To build on Windows:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
@@ -98,13 +102,14 @@ Run `.\.venv\Scripts\python.exe -m pytest tests -q`. Browser integration checks 
 .\.venv\Scripts\python.exe package_release.py
 ```
 
-Packaging refuses to overwrite an existing version. Keep the complete onedir runtime together.
+Packaging refuses to overwrite an existing version. Keep the complete runtime folder together. macOS and Linux work is preserved in [development/native-platforms](https://github.com/III85III/attack-website-tools/tree/development/native-platforms); native packages are not part of this verified release.
 
-## Contribute and report issues
+## Privacy, support and license
 
-[Contributing](CONTRIBUTING.md) · [Bug reports](https://github.com/III85III/attack-website-tools/issues/new/choose) · [Private vulnerability reporting](https://github.com/III85III/attack-website-tools/security/advisories/new)
+Scan only within written authorization and the agreed testing window. Active probes can affect a service. Scan history is stored locally; there is no Qolam_Hacker cloud analysis service. Passive CT queries disclose the queried hostname to the CT provider. Optional online speech sends selected text to Microsoft's speech service after confirmation; Windows SAPI remains the local alternative.
 
-## License
+Never post API keys, cookies, Bearer tokens, customer reports, database files or raw captures in public issues. Use [private vulnerability reporting](https://github.com/III85III/attack-website-tools/security/advisories/new) for security problems in this project.
 
-**GPL-3.0-only.** See [LICENSE](LICENSE), [COPYRIGHT](COPYRIGHT) and [third-party notices](THIRD_PARTY_NOTICES.md).
-Bundled dependencies retain their respective licenses; optional tools are separately distributed.
+[Full user guide and troubleshooting](docs/USER_GUIDE_EN.md) · [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md)
+
+**GPL-3.0-only.** See [LICENSE](LICENSE), [COPYRIGHT](COPYRIGHT) and [third-party notices](THIRD_PARTY_NOTICES.md). Dependencies retain their own licenses; optional external tools are separately distributed.

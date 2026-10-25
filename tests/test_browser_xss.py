@@ -145,7 +145,7 @@ def test_browser_budget_keeps_remaining_reflections_unverified(monkeypatch):
     def fetch(url, timeout):
         value = parse_qs(urlsplit(url).query)["q"][0]
         body = value.encode() if value.startswith("SENTINEL-PROBE") else b"safe"
-        return SimpleNamespace(content=body, headers={"Content-Type": "text/html"}, encoding="utf-8")
+        return SimpleNamespace(status_code=200, content=body, headers={"Content-Type": "text/html"}, encoding="utf-8")
     monkeypatch.setattr(adapter, "_bounded_get", fetch)
     findings = adapter._probe_query_parameters([{"url": f"https://owned.invalid/p{i}?q=private", "names": ["q"]} for i in range(4)], "fixture", None)
     assert len(calls) == 3 and len(findings) == 4

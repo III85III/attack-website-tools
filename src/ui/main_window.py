@@ -38,7 +38,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"ATTACK WEBSITE TOOLS {APP_VERSION} | Web Penetration Testing")
+        self.setWindowTitle(f"Qolam_Hacker {APP_VERSION} | Web Security Assessment")
         self.setWindowIcon(create_sentinel_icon())
         self.resize(1360, 900)
         self.setMinimumSize(1080, 760)
@@ -68,10 +68,10 @@ class MainWindow(QMainWindow):
         mark.setPixmap(create_sentinel_icon().pixmap(46, 46))
         mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
         mark.setStyleSheet("font-size:35px; color:#63d8f2; font-weight:700;")
-        name = QLabel("ATTACK WEBSITE")
+        name = QLabel("QOLAM")
         name.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        name.setStyleSheet("font-size:16px; color:#e9f5ff; font-weight:800; letter-spacing:3px;")
-        sub = QLabel("T E S T I N G   T O O L S")
+        name.setStyleSheet("font-size:20px; color:#e9f5ff; font-weight:800; letter-spacing:3px;")
+        sub = QLabel("H A C K E R")
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sub.setStyleSheet("font-size:9px; color:#6d8da8; letter-spacing:2px;")
         side.addWidget(mark)

@@ -14,7 +14,7 @@ from src.core.models import (
     ScanRun,
     ToolHealthInfo,
 )
-from src.reporting.docx_report import JSONExporter, ReportGenerator
+from src.reporting.docx_report import HTMLExporter, JSONExporter, MarkdownExporter, ReportGenerator
 
 
 @pytest.mark.parametrize("status", [FindingStatus.SCANNER_REPORTED, FindingStatus.VALIDATED])
@@ -102,3 +102,51 @@ def test_json_export_generation():
             assert data["platform"] == "III85III QOLAM SENTINEL"
             assert data["total_findings"] == 1
             assert len(data["findings"]) == 1
+
+
+def test_markdown_export_generation():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        exporter = MarkdownExporter(output_dir=Path(tmpdir))
+        scan = ScanRun(tool_name="Sentinel Web", target="https://example.com", raw_command="")
+        finding = Finding(
+            title="Reflected XSS Detected",
+            description="XSS indicator found in parameter.",
+            source_tool="Sentinel Web",
+            severity_source="Synthetic fixture",
+            confidence_justification="Synthetic fixture",
+            target="https://example.com/search?q=test",
+            severity=FindingSeverity.HIGH,
+            confidence=FindingConfidence.HIGH,
+            evidence_raw='{"param": "q", "reflected": true}',
+            cwe_id="CWE-79",
+        )
+        md_path = exporter.export_markdown(scan, [finding], [], "https://example.com")
+        assert md_path.is_file()
+        content = md_path.read_text(encoding="utf-8")
+        assert "# 🛡️ Security Assessment Report" in content
+        assert "Reflected XSS Detected" in content
+        assert "CWE-79" in content
+
+
+def test_html_export_generation():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        exporter = HTMLExporter(output_dir=Path(tmpdir))
+        scan = ScanRun(tool_name="Sentinel Web", target="https://example.com", raw_command="")
+        finding = Finding(
+            title="Insecure Direct Object Reference",
+            description="Parameter ID exposed.",
+            source_tool="Sentinel Web",
+            severity_source="Synthetic fixture",
+            confidence_justification="Synthetic fixture",
+            target="https://example.com/api/users",
+            severity=FindingSeverity.CRITICAL,
+            confidence=FindingConfidence.CONFIRMED,
+            evidence_raw='{"idor": true}',
+            cwe_id="CWE-639",
+        )
+        html_path = exporter.export_html(scan, [finding], [], "https://example.com")
+        assert html_path.is_file()
+        content = html_path.read_text(encoding="utf-8")
+        assert "III85III" in content
+        assert "Insecure Direct Object Reference" in content
+        assert "badge-critical" in content
