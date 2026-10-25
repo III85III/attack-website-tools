@@ -27,3 +27,7 @@ release-assets/
 pytest-results.xml
 OPEN SENTINEL.exe
 release-notes-public.md
+
+release-desktop/
+desktop-tests.xml
+desktop-verification.json

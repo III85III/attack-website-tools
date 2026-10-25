@@ -81,7 +81,8 @@ def origin(url):
 def signed_browser():
     """Only fixed vendor installation paths; never launch an arbitrary PATH executable."""
     if os.name != "nt":
-        return None
+        from src.core.browser_trust import trusted_unix_browser
+        return trusted_unix_browser()
     system = Path(os.environ.get("SystemRoot", r"C:\Windows"))
     powershell = system / "System32/WindowsPowerShell/v1.0/powershell.exe"
     security_module = system / "System32/WindowsPowerShell/v1.0/Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1"
@@ -129,8 +130,8 @@ class BrowserXSSVerifier:
             path = None
         return ToolHealthInfo(name=self.name, installed=bool(path), path=str(path or ""), version="Runtime checked on use",
                               availability_status="VERSION_CHECK_FAILED" if path else "MISSING",
-                              status_message="Signed system browser found; launch checked during an eligible deep scan." if path else
-                              "Requires Playwright and a signed system Edge/Chrome. No browser was downloaded.")
+                              status_message="Trusted system browser found; launch checked during an eligible deep scan." if path else
+                              "Requires Playwright and a trusted system Chrome/Edge (or package-managed Linux Chromium). No browser was downloaded.")
 
     def verify(self, url, parameter):
         result = {"verification_method": "browser_execution_probe", "script_execution_verified": False,

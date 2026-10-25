@@ -1,7 +1,8 @@
-"""Build the standalone Windows app and normalize bundled Qt runtimes."""
+"""Build a native desktop app on Windows, macOS or Linux."""
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -22,14 +23,14 @@ def build() -> Path | None:
         "--onedir",
         "--noupx",
         "--windowed",
-        f"--icon={BASE_DIR / 'assets' / 'sentinel.ico'}",
+        *([f"--icon={BASE_DIR / 'assets' / 'sentinel.ico'}"] if sys.platform == "win32" else []),
         f"--paths={BASE_DIR}",
         f"--runtime-hook={BASE_DIR / 'pyi_rth_qt6_dll.py'}",
-        f"--add-data={BASE_DIR / 'docs' / 'USER_GUIDE_FA.md'};docs",
-        f"--add-data={BASE_DIR / 'docs' / 'USER_GUIDE_EN.md'};docs",
-        f"--add-data={BASE_DIR / 'docs' / 'SECURITY_MODEL.md'};docs",
-        f"--add-data={BASE_DIR / 'THIRD_PARTY_NOTICES.md'};.",
-        f"--add-data={BASE_DIR / 'LICENSE'};.",
+        f"--add-data={BASE_DIR / 'docs' / 'USER_GUIDE_FA.md'}{os.pathsep}docs",
+        f"--add-data={BASE_DIR / 'docs' / 'USER_GUIDE_EN.md'}{os.pathsep}docs",
+        f"--add-data={BASE_DIR / 'docs' / 'SECURITY_MODEL.md'}{os.pathsep}docs",
+        f"--add-data={BASE_DIR / 'THIRD_PARTY_NOTICES.md'}{os.pathsep}.",
+        f"--add-data={BASE_DIR / 'LICENSE'}{os.pathsep}.",
         "--hidden-import=PyQt6",
         "--hidden-import=docx",
         "--hidden-import=psutil",
@@ -43,6 +44,11 @@ def build() -> Path | None:
         return None
 
     app_dir = BASE_DIR / "dist" / "Qolam_Sentinel"
+    if sys.platform != "win32":
+        binary = (BASE_DIR / "dist" / "Qolam_Sentinel.app" / "Contents" / "MacOS" / "Qolam_Sentinel"
+                  if sys.platform == "darwin" else app_dir / "Qolam_Sentinel")
+        print(f"[+] Build succeeded: {binary}")
+        return binary if binary.is_file() else None
     internal = app_dir / "_internal"
     qt_bin = internal / "PyQt6" / "Qt6" / "bin"
 

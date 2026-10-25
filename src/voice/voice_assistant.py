@@ -80,6 +80,9 @@ class PersianVoiceAssistant:
         if not text or not text.strip():
             return False, "متن جهت تبدیل به گفتار خالی است."
 
+        if os.name != "nt":
+            return False, "Voice playback is currently Windows-only; reports and scanning remain available."
+
         if allow_online:
             tmp_path = ""
             try:

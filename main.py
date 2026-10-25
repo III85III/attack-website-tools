@@ -172,7 +172,24 @@ def _verify_local_api(target_url: str, spec_path: str, output_path: str) -> int:
         return 1
 
 
+def _verify_local_gui(output_path):
+    """Construct the real scanner window in an isolated release-QA process."""
+    from PyQt6.QtCore import QTimer
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.show()
+    app.processEvents()
+    visible = window.isVisible() and window.centralWidget() is not None
+    QTimer.singleShot(300, app.quit)
+    app.exec()
+    window.close()
+    Path(output_path).write_text(json.dumps({"version": APP_VERSION, "gui_constructed": visible}), encoding="utf-8")
+    return 0 if visible else 1
+
+
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--verify-local-gui":
+        return _verify_local_gui(sys.argv[2])
     if len(sys.argv) == 5 and sys.argv[1] == "--verify-local-api":
         return _verify_local_api(sys.argv[2], sys.argv[3], sys.argv[4])
     if len(sys.argv) == 4 and sys.argv[1] == "--verify-local-browser":
@@ -183,7 +200,7 @@ def main():
         return _verify_local_session_review(sys.argv[2], sys.argv[3], sys.argv[4])
 
     app = QApplication(sys.argv)
-    app.setApplicationName("III85III QOLAM SENTINEL")
+    app.setApplicationName("ATTACK WEBSITE TOOLS")
     app.setOrganizationName("III85III")
     app.setApplicationVersion(APP_VERSION)
 

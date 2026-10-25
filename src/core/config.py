@@ -8,18 +8,29 @@ import os
 import sys
 from pathlib import Path
 
-# Source runs keep their state beside the project. Frozen installs use a
-# writable per-user location; preserve the existing portable Desktop data
-# folder when upgrading that layout in place.
+# User state stays outside source trees and signed/read-only application bundles.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-if getattr(sys, "frozen", False):
-    executable_dir = Path(sys.executable).resolve().parent
-    legacy_project_dir = executable_dir.parent.parent
-    legacy_data_dir = legacy_project_dir / "data"
-    local_app_data = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
-    STATE_DIR = legacy_project_dir if (legacy_data_dir / "sentinel.db").is_file() else local_app_data / "III85III" / "Qolam Sentinel"
-else:
-    STATE_DIR = BASE_DIR
+
+
+def user_state_dir(platform_name=None, home=None, environ=None):
+    platform_name = platform_name or sys.platform
+    home = Path(home) if home is not None else Path.home()
+    environ = os.environ if environ is None else environ
+    if platform_name == "win32":
+        return Path(environ.get("LOCALAPPDATA") or home / "AppData" / "Local") / "III85III" / "Qolam Sentinel"
+    if platform_name == "darwin":
+        return home / "Library" / "Application Support" / "III85III" / "Attack Website Tools"
+    xdg = Path(environ.get("XDG_DATA_HOME") or home / ".local" / "share")
+    if not xdg.is_absolute():
+        xdg = home / ".local" / "share"
+    return xdg / "iii85iii" / "attack-website-tools"
+
+
+STATE_DIR = user_state_dir()
+if sys.platform == "win32" and getattr(sys, "frozen", False):
+    legacy = Path(sys.executable).resolve().parent.parent.parent
+    if (legacy / "data" / "sentinel.db").is_file():
+        STATE_DIR = legacy
 
 DATA_DIR = STATE_DIR / "data"
 LOGS_DIR = STATE_DIR / "logs"
@@ -41,7 +52,7 @@ DEFAULT_ZAP_API_KEY = ""
 # Scope and security boundaries
 ALLOWED_SCAN_PROTOCOLS = ["http", "https"]
 DEFAULT_LOCAL_TARGETS = ["127.0.0.1", "localhost", "::1"]
-APP_VERSION = "0.19.0"
+APP_VERSION = "0.20.0"
 
 # Telemetry & Monitoring
 PROCESS_CPU_THRESHOLD = 80.0  # Alert if CPU exceeds this percentage
