@@ -1,14 +1,14 @@
-<p align="center"><img src="assets/sentinel.png" width="108" alt="Mirage Sentinel shield and infinity logo"></p>
-<h1 align="center">Mirage Sentinel — Web Penetration Testing</h1>
-<p align="center">A Windows web penetration testing workbench with browser execution evidence and structured reports.</p>
+<p align="center"><img src="assets/sentinel.png" width="108" alt="ATTACK WEBSITE TOOLS shield and infinity logo"></p>
+<h1 align="center">ATTACK WEBSITE TOOLS</h1>
+<p align="center">Web Penetration Testing for Windows · Browser evidence · Word reports</p>
 <p align="center">
-<a href="https://github.com/III85III/mirage-sentinel-penetration-testing/releases/tag/v0.19.0"><strong>Download Windows</strong></a> ·
+<a href="https://github.com/III85III/attack-website-tools/releases/tag/v0.19.0"><strong>Download Windows</strong></a> ·
 <a href="docs/USER_GUIDE_EN.md">User guide</a> ·
 <a href="docs/SECURITY_MODEL.md">Security model</a> ·
-<a href="https://github.com/III85III/mirage-sentinel-penetration-testing/issues/new/choose">Report a bug</a>
+<a href="https://github.com/III85III/attack-website-tools/issues/new/choose">Report a bug</a>
 </p>
 <p align="center">
-<a href="https://github.com/III85III/mirage-sentinel-penetration-testing/actions/workflows/windows.yml"><img src="https://github.com/III85III/mirage-sentinel-penetration-testing/actions/workflows/windows.yml/badge.svg" alt="Windows checks"></a>
+<a href="https://github.com/III85III/attack-website-tools/actions/workflows/windows.yml"><img src="https://github.com/III85III/attack-website-tools/actions/workflows/windows.yml/badge.svg" alt="Windows checks"></a>
 <img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white" alt="Python 3.11">
 <img src="https://img.shields.io/badge/Platform-Windows_x64-0b78b4" alt="Windows x64">
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0--only-blue" alt="GPL-3.0-only"></a>
@@ -16,21 +16,25 @@
 
 **0.19.0 release candidate** · English interface · Persian Word reports and structured JSON · Runs on your computer
 
-Sentinel helps assessors review websites they own or are explicitly authorized to test, including public websites. Enter a URL, run the assessment and review findings with their source, confidence and evidence.
+Enter a website URL, run an assessment and turn the results into a Word report. ATTACK WEBSITE TOOLS brings website checks, browser-confirmed reflected XSS, documented API review and test-account access checks into one Windows desktop app. Each finding keeps its evidence, severity and validation status.
 
-![Actual Sentinel Windows interface](docs/images/scanner.png)
+Built for websites you own or have written permission to assess, including public websites.
+
+![Version 0.19.0 Windows interface](docs/images/scanner.png)
 
 ## Start in three steps
 
-1. Download `III85III_MIRAGE_SENTINEL_0.19.0_Windows-x64.zip` from [Releases](https://github.com/III85III/mirage-sentinel-penetration-testing/releases/tag/v0.19.0).
+1. Download `III85III_MIRAGE_SENTINEL_0.19.0_Windows-x64.zip` from [Releases](https://github.com/III85III/attack-website-tools/releases/tag/v0.19.0).
 2. Extract the **whole** ZIP. Keep `_internal` beside `Qolam_Sentinel.exe`.
 3. Run `Qolam_Sentinel.exe`, enter your authorized website URL and select **Scan Website**.
+
+The current 0.19.0 executable and ZIP retain the earlier Sentinel name shown in the screenshot. This repository is now called ATTACK WEBSITE TOOLS; the download is the same verified build.
 
 Python is not required for the portable package. Browser confirmation requires a normally installed, signed Microsoft Edge or Google Chrome. Nmap and OWASP ZAP are separate optional products.
 
 Verify the download with `SHA256SUMS_0.19.0.txt`. The package includes matching application source, collected dependency licenses and per-file hashes.
 
-## Assessment capabilities
+## What you can check
 
 | Area | Current behavior |
 |---|---|
@@ -54,7 +58,7 @@ The website engine covers up to 25 same-origin pages and ten query parameters. T
 
 Stored/blind XSS, exhaustive DOM analysis, POST/JSON execution and full business-workflow testing are outside the current automated coverage. A clean scan does not establish that a website is secure. See the [security model](docs/SECURITY_MODEL.md).
 
-## Verification
+## What has been verified
 
 The local Windows source suite passed **227 tests**. Packaged verification exercised five API/Word scenarios, three browser scenarios and four supplied-session scenarios against disposable loopback servers.
 
@@ -64,11 +68,15 @@ The frozen application generated and reopened real DOCX files, persisted finding
 
 This is an unsigned release candidate. Clean-machine compatibility, completed visual Word layout review and an independent security audit are not claimed.
 
-## Privacy and authorized use
+## Your data and testing scope
 
-Use Sentinel only within your written authorization and agreed scope. Active probes can affect a target. The responsible-use notice does not grant target access.
+Use the app only within your written authorization and agreed scope. Active probes can affect a target. The responsible-use notice does not grant target access.
 
-Scan history and reports remain on the computer. There is no Sentinel cloud analysis or telemetry service. Optional online speech sends selected text to Microsoft's speech service only after confirmation; local Windows SAPI remains available.
+Scan history and reports remain on the computer. Exported reports can contain sensitive target information: review and redact them before sharing. Never attach test-session cookies, Bearer tokens, API keys, database files or raw traffic captures to a public issue. There is no Sentinel cloud analysis or telemetry service. Optional online speech sends selected text to Microsoft's speech service only after confirmation; local Windows SAPI remains available.
+
+## Need help?
+
+See the [complete user guide](docs/USER_GUIDE_EN.md) for installation, a first scan, API definitions, test sessions, report exports and troubleshooting. Use [bug reports](https://github.com/III85III/attack-website-tools/issues/new/choose) for app problems and [private reporting](https://github.com/III85III/attack-website-tools/security/advisories/new) for vulnerabilities in this project.
 
 ## Run from source
 
@@ -94,7 +102,7 @@ Packaging refuses to overwrite an existing version. Keep the complete onedir run
 
 ## Contribute and report issues
 
-[Contributing](CONTRIBUTING.md) · [Bug reports](https://github.com/III85III/mirage-sentinel-penetration-testing/issues/new/choose) · [Private vulnerability reporting](https://github.com/III85III/mirage-sentinel-penetration-testing/security/advisories/new)
+[Contributing](CONTRIBUTING.md) · [Bug reports](https://github.com/III85III/attack-website-tools/issues/new/choose) · [Private vulnerability reporting](https://github.com/III85III/attack-website-tools/security/advisories/new)
 
 ## License
 

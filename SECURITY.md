@@ -4,7 +4,7 @@ The currently maintained release candidate is **0.19.0**. Releases are unsigned;
 
 ## Report a vulnerability in Sentinel
 
-Use [GitHub private vulnerability reporting](https://github.com/III85III/mirage-sentinel-penetration-testing/security/advisories/new).
+Use [GitHub private vulnerability reporting](https://github.com/III85III/attack-website-tools/security/advisories/new).
 Include the affected version, a minimal reproduction, impact and sanitized evidence.
 Do not post credentials, customer data, private target reports or live session tokens publicly.
 
