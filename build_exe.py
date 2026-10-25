@@ -18,7 +18,7 @@ def build() -> Path | None:
         "PyInstaller",
         "--noconfirm",
         "--clean",
-        "--name=Qolam_Sentinel",
+        "--name=Qolam_Hacker",
         "--onedir",
         "--noupx",
         "--windowed",
@@ -42,7 +42,7 @@ def build() -> Path | None:
         print(f"[-] PyInstaller failed with exit code {result.returncode}")
         return None
 
-    app_dir = BASE_DIR / "dist" / "Qolam_Sentinel"
+    app_dir = BASE_DIR / "dist" / "Qolam_Hacker"
     internal = app_dir / "_internal"
     qt_bin = internal / "PyQt6" / "Qt6" / "bin"
 
@@ -57,8 +57,8 @@ def build() -> Path | None:
         for runtime in qt_bin.glob(pattern):
             shutil.copy2(runtime, internal / runtime.name)
 
-    print(f"[+] Build succeeded: {app_dir / 'Qolam_Sentinel.exe'}")
-    return app_dir / "Qolam_Sentinel.exe"
+    print(f"[+] Build succeeded: {app_dir / 'Qolam_Hacker.exe'}")
+    return app_dir / "Qolam_Hacker.exe"
 
 
 if __name__ == "__main__":

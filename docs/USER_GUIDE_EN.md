@@ -1,6 +1,6 @@
 # Qolam_Hacker — User Guide
 
-For a ready-to-run Windows installation, download the **Windows-x64 ZIP** from [release 0.19.1](https://github.com/III85III/attack-website-tools/releases/tag/v0.19.1), extract it completely and open `Qolam_Sentinel.exe`. Keep `_internal` beside the EXE. You do not need Python. The [README](../README.md) includes checksum verification and source/build commands.
+For a ready-to-run Windows installation, download the **Windows-x64 ZIP** from [release 0.19.1](https://github.com/III85III/attack-website-tools/releases/tag/v0.19.1), extract it completely and open `Qolam_Hacker.exe`. Keep `_internal` beside the EXE. You do not need Python. The [README](../README.md) includes checksum verification and source/build commands.
 
 
 Version 0.19.1 uses one primary **Scan Website** button. Optional supplied-account and OpenAPI setup is in the Scan button's right-click menu. Automatic discovery cannot infer credentials, object ownership or business rules; configure those explicitly when needed.

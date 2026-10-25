@@ -9,5 +9,10 @@
   "api_arithmetic_candidate_verified": true,
   "word_generated_and_reopened": true,
   "word_visual_review": false,
-  "json_and_database_verified": true
+  "json_and_database_verified": true,
+  "packaging_revision": 2,
+  "executable_name": "Qolam_Hacker.exe",
+  "renamed_executable_loopback_verified": true,
+  "application_binary_sha256": "b0befb250bd44387fb28705e3f5bbffeb679bc556d7371e7e7611a61530905ec",
+  "scanner_logic_changed": false
 }

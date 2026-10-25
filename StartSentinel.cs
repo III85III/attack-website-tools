@@ -13,8 +13,8 @@ internal static class StartSentinel
     private static void Main()
     {
         string root = AppDomain.CurrentDomain.BaseDirectory;
-        string folder = Path.Combine(root, "release", "III85III_MIRAGE_SENTINEL_0.19.1_Windows-x64");
-        string executable = Path.Combine(folder, "Qolam_Sentinel.exe");
+        string folder = Path.Combine(root, "release", "Qolam_Hacker_0.19.1_Windows-x64");
+        string executable = Path.Combine(folder, "Qolam_Hacker.exe");
         try
         {
             if (!File.Exists(executable) || !Directory.Exists(Path.Combine(folder, "_internal")))

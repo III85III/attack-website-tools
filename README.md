@@ -20,12 +20,12 @@ Enter an authorized website URL, select **Scan Website**, then review the eviden
 ## Install and run
 
 1. Open the [0.19.1 release](https://github.com/III85III/attack-website-tools/releases/tag/v0.19.1).
-2. Download **`III85III_MIRAGE_SENTINEL_0.19.1_Windows-x64.zip`**. GitHub's automatic source-code archive is not the ready-to-run application.
+2. Download **`Qolam_Hacker_0.19.1_Windows-x64.zip`**. GitHub's automatic source-code archive is not the ready-to-run application.
 3. Extract the **entire ZIP** into a normal folder.
-4. Open **`Qolam_Sentinel.exe`**. Keep `_internal` beside it. Python is not required.
+4. Open **`Qolam_Hacker.exe`**. Keep `_internal` beside it. Python is not required.
 5. Read the first-launch notice, enter your authorized URL, then select **Scan Website**.
 
-The ZIP and executable retain their earlier filenames for compatibility. The app's displayed name is **Qolam_Hacker**.
+The Windows download contains **Qolam_Hacker.exe**, its required `_internal` folder, documentation and matching source.
 
 Use Windows x64. Browser confirmation needs a normally installed, signed Microsoft Edge or Google Chrome. Optional ZAP and Nmap are installed separately; the app reports when they are unavailable.
 
@@ -34,7 +34,7 @@ Use Windows x64. Browser confirmation needs a normally installed, signed Microso
 Download `SHA256SUMS_0.19.1.txt` from the same release. In PowerShell, run this from your download folder:
 
 ```powershell
-Get-FileHash .\III85III_MIRAGE_SENTINEL_0.19.1_Windows-x64.zip -Algorithm SHA256
+Get-FileHash .\Qolam_Hacker_0.19.1_Windows-x64.zip -Algorithm SHA256
 ```
 
 Compare the full result with the matching ZIP entry in the checksum file. The build is unsigned. A checksum checks integrity; it is not a signing certificate.
@@ -81,12 +81,9 @@ This is an unsigned release candidate. A completed visual Word layout audit, ind
 
 ## Run from source
 
-Use Windows x64 and Python 3.11. For the source matching the release:
+Use Windows x64 and Python 3.11. Download and extract **Qolam_Hacker_0.19.1_Source.zip** from this release, then open PowerShell in the extracted source folder:
 
 ```powershell
-git clone https://github.com/III85III/attack-website-tools.git
-cd attack-website-tools
-git checkout v0.19.1
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe main.py
