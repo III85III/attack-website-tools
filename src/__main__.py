@@ -53,7 +53,9 @@ def _verify_startup(output_path: str) -> int:
             widget = window._tabs[0]
             result = {"application_version": APP_VERSION, "window_title": window.windowTitle(),
                 "scan_button": widget.scan_btn.text(), "target_input_empty": not widget.target_input.text(),
-                "history_isolated": True, "screenshot_saved": screenshot_ok}
+                "history_isolated": True, "screenshot_saved": screenshot_ok,
+                "creator_links_visible": window.creator_links.isVisible(),
+                "creator_links": window.creator_links.text()}
             destination.write_text(json.dumps(result, indent=2), encoding="utf-8")
             return 0 if screenshot_ok and "OBSIDIAN" in window.windowTitle() and result["target_input_empty"] else 1
         finally:
@@ -63,7 +65,7 @@ def _verify_startup(output_path: str) -> int:
             DatabaseManager._instance = old_database
 
 
-def _verify_local_scanner(target_url: str, output_path: str, deep_scan: bool = False) -> int:
+def _verify_local_scanner(target_url: str, output_path: str, deep_scan: bool = False, traffic_path: str = "") -> int:
     """Run a real scanner smoke check against loopback only, for release QA."""
     try:
         parsed = urlsplit(target_url)
@@ -79,13 +81,18 @@ def _verify_local_scanner(target_url: str, output_path: str, deep_scan: bool = F
         from src.core.models import ScanRun
 
         scan = ScanRun(tool_name="Packaged OBSIDIAN DAST self-check", target=target_url, raw_command="")
-        scan, findings = WebAuditorAdapter().run_scan(target_url, scan, {"deep_scan": deep_scan})
+        options = {"deep_scan": deep_scan}
+        if traffic_path:
+            from src.core.traffic_inventory import import_har
+            options.update(traffic_plan=import_har(Path(traffic_path), target_url), traffic_probes_approved=True)
+        scan, findings = WebAuditorAdapter().run_scan(target_url, scan, options)
         import tempfile
         from src.reporting.export_service import export_assessment
         from src.core.privacy import sanitize_data
 
         persisted_ids = set()
         exported_ids = set()
+        word_verified = None
         with tempfile.TemporaryDirectory(prefix="sentinel-self-check-") as temporary:
             database = DatabaseManager(Path(temporary) / "verification.db")
             try:
@@ -97,6 +104,12 @@ def _verify_local_scanner(target_url: str, output_path: str, deep_scan: bool = F
                 if scan.status not in {"RUNNING", "QUEUED"}:
                     report = export_assessment(database, scan.id, "json", Path(temporary))
                     exported_ids = {item["id"] for item in json.loads(report.read_text(encoding="utf-8"))["findings"]}
+                    if traffic_path:
+                        from docx import Document
+                        word = export_assessment(database, scan.id, "docx", Path(temporary))
+                        document = Document(word)
+                        text = "\n".join([p.text for p in document.paragraphs] + [c.text for t in document.tables for r in t.rows for c in r.cells])
+                        word_verified = (document.core_properties.author == "III85III OBSIDIAN" and "پوشش مسیرهای کشف‌شده" in text)
             finally:
                 database.close()
         expected_ids = {finding.id for finding in findings}
@@ -108,12 +121,13 @@ def _verify_local_scanner(target_url: str, output_path: str, deep_scan: bool = F
             "findings": [finding.to_dict() for finding in findings],
             "persistence_verified": persistence_verified,
             "export_verified": export_verified,
+            "word_export_verified": word_verified,
         }
         destination = Path(output_path).resolve()
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(json.dumps(sanitize_data(payload), ensure_ascii=False, indent=2), encoding="utf-8")
         return 0 if (scan.status == "COMPLETED" and scan.request_count > 0
-                     and scan.response_status is not None and persistence_verified and export_verified) else 1
+                     and scan.response_status is not None and persistence_verified and export_verified and word_verified is not False) else 1
     except Exception as exc:
         try:
             Path(output_path).resolve().write_text(
@@ -214,6 +228,8 @@ def _verify_local_api(target_url: str, spec_path: str, output_path: str) -> int:
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "--verify-startup":
         return _verify_startup(sys.argv[2])
+    if len(sys.argv) == 5 and sys.argv[1] == "--verify-local-traffic":
+        return _verify_local_scanner(sys.argv[2], sys.argv[4], deep_scan=True, traffic_path=sys.argv[3])
     if len(sys.argv) == 5 and sys.argv[1] == "--verify-local-api":
         return _verify_local_api(sys.argv[2], sys.argv[3], sys.argv[4])
     if len(sys.argv) == 4 and sys.argv[1] == "--verify-local-browser":

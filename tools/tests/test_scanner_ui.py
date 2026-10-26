@@ -88,3 +88,22 @@ def test_scan_landing_is_uncluttered_and_animation_is_idle(tmp_path, monkeypatch
     assert widget.session_plan is None
     widget.close()
     database.close()
+
+
+def test_account_setup_menu_is_visible_and_has_one_scan_action(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    db = DatabaseManager(tmp_path / "setup-ui.db")
+    monkeypatch.setattr(DatabaseManager, "get_instance", classmethod(lambda cls, *_a, **_kw: db))
+    widget = WebSecurityTab()
+    try:
+        widget.show()
+        app.processEvents()
+        assert widget.session_btn.isVisible()
+        assert widget.session_btn.text() == "Assessment setup"
+        labels = [action.text() for action in widget.session_btn.menu().actions()]
+        assert "Test sessions / access rules (Optional)" in labels
+        assert "Import HAR route discovery" in labels
+        assert widget.scan_btn.text() == "Scan Website"
+    finally:
+        widget.close()
+        db.close()

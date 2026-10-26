@@ -37,9 +37,9 @@ Windows x64 · Edge / Chrome
 
 ## इंस्टॉलेशन
 
-Releases से OBSIDIAN_0.20.0_Windows-x64.zip डाउनलोड करके पूरा ZIP निकालें और OBSIDIAN.exe खोलें। _internal साथ रखें; Python आवश्यक नहीं। अनुमति की पुष्टि कर URL भरें, Scan Website दबाएँ और Export Word report से रिपोर्ट निकालें। यह बिना हस्ताक्षर वाला prerelease है; ब्राउज़र जाँच के लिए विश्वसनीय Edge या Chrome चाहिए।
+Releases से OBSIDIAN_0.21.0_Windows-x64.zip डाउनलोड करके पूरा ZIP निकालें और OBSIDIAN.exe खोलें। _internal साथ रखें; Python आवश्यक नहीं। अनुमति की पुष्टि कर URL भरें, Scan Website दबाएँ और Export Word report से रिपोर्ट निकालें। यह बिना हस्ताक्षर वाला prerelease है; ब्राउज़र जाँच के लिए विश्वसनीय Edge या Chrome चाहिए।
 
-[Releases](https://github.com/III85III/attack-website-tools/releases/tag/v0.20.0) · [SHA256SUMS_0.20.0.txt](https://github.com/III85III/attack-website-tools/releases/download/v0.20.0/SHA256SUMS_0.20.0.txt)
+[Releases](https://github.com/III85III/attack-website-tools/releases/tag/v0.20.0) · [SHA256SUMS_0.21.0.txt](https://github.com/III85III/attack-website-tools/releases/download/v0.21.0/SHA256SUMS_0.21.0.txt)
 
 ## सोर्स कोड प्राप्त करें
 

@@ -88,9 +88,9 @@ def package() -> Path:
     for filename in ("COPYRIGHT", "THIRD_PARTY_NOTICES.md"):
         shutil.copy2(BASE / "docs" / "legal" / filename, destination / filename)
     (destination / "docs").mkdir()
-    for filename in ("USER_GUIDE_EN.md", "SECURITY_MODEL.md", "RESPONSIBLE_USE.md", "RELEASE_CHECKLIST.md", "DEPTH_COVERAGE_AUDIT.md", "OBSIDIAN_AUDIT.md", f"RELEASE_NOTES_{APP_VERSION}.md"):
+    for filename in ("USER_GUIDE_EN.md", "USER_GUIDE_FA.md", "BLACKSITE_AUDIT.md", "SECURITY_MODEL.md", "RESPONSIBLE_USE.md", "RELEASE_CHECKLIST.md", "DEPTH_COVERAGE_AUDIT.md", "OBSIDIAN_AUDIT.md", f"RELEASE_NOTES_{APP_VERSION}.md"):
         shutil.copy2(BASE / "docs" / filename, destination / "docs" / filename)
-    for folder in ("i18n", "images"):
+    for folder in ("i18n", "images", "verification"):
         shutil.copytree(BASE / "docs" / folder, destination / "docs" / folder)
     shutil.copytree(BASE / "docs" / "assets", destination / "docs" / "assets")
     shutil.copytree(BASE / "docs" / "legal", destination / "docs" / "legal")

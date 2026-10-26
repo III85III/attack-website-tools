@@ -6,14 +6,14 @@ using System.Windows.Forms;
 
 [assembly: AssemblyTitle("III85III OBSIDIAN")]
 [assembly: AssemblyDescription("Launch the verified portable OBSIDIAN package")]
-[assembly: AssemblyVersion("0.20.0.0")]
+[assembly: AssemblyVersion("0.21.0.0")]
 internal static class StartObsidian
 {
     [STAThread]
     private static void Main()
     {
         string root = AppDomain.CurrentDomain.BaseDirectory;
-        string folder = Path.Combine(root, "release", "OBSIDIAN_0.20.0_Windows-x64");
+        string folder = Path.Combine(root, "release", "OBSIDIAN_0.21.0_Windows-x64");
         string executable = Path.Combine(folder, "OBSIDIAN.exe");
         try
         {

@@ -70,7 +70,7 @@ Word، HTML و Markdown برای مطالعه و تحویل مناسب‌اند�
 
 ## نصب و اجرا
 
-۱. روی **Windows x64** فایل [OBSIDIAN_0.20.0_Windows-x64.zip](https://github.com/III85III/attack-website-tools/releases/download/v0.20.0/OBSIDIAN_0.20.0_Windows-x64.zip) را بگیر.
+۱. روی **Windows x64** فایل [OBSIDIAN_0.21.0_Windows-x64.zip](https://github.com/III85III/attack-website-tools/releases/download/v0.21.0/OBSIDIAN_0.21.0_Windows-x64.zip) را بگیر.
 
 ۲. کل ZIP را در پوشه‌ای قابل نوشتن استخراج کن.
 
@@ -80,7 +80,7 @@ Word، HTML و Markdown برای مطالعه و تحویل مناسب‌اند�
 
 ۵. شواهد را بررسی کن و با **Export Word report** یا گزینه‌های دیگر گزارش بگیر.
 
-هش فایل را با [SHA256SUMS_0.20.0.txt](https://github.com/III85III/attack-website-tools/releases/download/v0.20.0/SHA256SUMS_0.20.0.txt) مقایسه کن. نسخه امضای دیجیتال ندارد؛ چک‌سام فقط یکپارچگی فایل را بررسی می‌کند. آرشیو خودکار Source code گیت‌هاب، برنامهٔ آمادهٔ اجرا نیست.
+هش فایل را با [SHA256SUMS_0.21.0.txt](https://github.com/III85III/attack-website-tools/releases/download/v0.21.0/SHA256SUMS_0.21.0.txt) مقایسه کن. نسخه امضای دیجیتال ندارد؛ چک‌سام فقط یکپارچگی فایل را بررسی می‌کند. آرشیو خودکار Source code گیت‌هاب، برنامهٔ آمادهٔ اجرا نیست.
 
 ## ابزارهای اختیاری و محدودیت‌ها
 

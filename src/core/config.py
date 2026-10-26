@@ -52,7 +52,9 @@ DEFAULT_ZAP_API_KEY = ""
 # Scope and security boundaries
 ALLOWED_SCAN_PROTOCOLS = ["http", "https"]
 DEFAULT_LOCAL_TARGETS = ["127.0.0.1", "localhost", "::1"]
-APP_VERSION = "0.20.0"
+APP_VERSION = "0.21.0"
+AUTHOR_TELEGRAM_URL = "https://t.me/parsamzmz"
+AUTHOR_GITHUB_URL = "https://github.com/III85III"
 PRODUCT_NAME = "OBSIDIAN"
 
 # Telemetry & Monitoring

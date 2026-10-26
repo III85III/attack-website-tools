@@ -25,7 +25,7 @@
 
 <p align="center"><img src="docs/assets/obsidian-banner.svg" alt="OBSIDIAN website and API security assessment" width="100%"></p>
 
-<p align="center"><a href="https://github.com/III85III/attack-website-tools/releases/tag/v0.20.0"><strong>Download for Windows</strong></a> · <a href="docs/USER_GUIDE_EN.md">User guide</a> · <a href="docs/OBSIDIAN_AUDIT.md">Technical coverage</a></p>
+<p align="center"><a href="https://github.com/III85III/attack-website-tools/releases/tag/v0.21.0"><strong>Download for Windows</strong></a> · <a href="docs/USER_GUIDE_EN.md">User guide</a> · <a href="docs/OBSIDIAN_AUDIT.md">Technical coverage</a></p>
 
 # OBSIDIAN
 
@@ -34,6 +34,10 @@
 OBSIDIAN brings the assessment workflow into one application: enter the website URL, discover reachable application components, run the available security checks, inspect how each result was obtained, and export the selected assessment as a Word, HTML, Markdown or JSON report. It is intended for security researchers, penetration testers and developers assessing websites they own or have permission to test.
 
 The application combines its own bounded web scanner with JavaScript and API discovery, optional browser verification, explicitly configured test-account comparisons and existing external-tool integrations. Its purpose is to make both the findings and the gaps visible: a reported suspicion, an observed configuration and a reproduced vulnerability are different results.
+
+![OBSIDIAN BLACKSITE scanner](docs/images/blacksite-scanner.png)
+
+*The actual 0.21 Windows application. The evidence workspace uses saved assessment data; local fixture verification is documented in the audit.*
 
 ## What the scanner checks
 
@@ -50,9 +54,19 @@ The application combines its own bounded web scanner with JavaScript and API dis
 
 File-boundary testing is available through explicitly declared synthetic canary options in the engine. It requires a provisioned harmless file and expected marker; automatic sensitive-system-file reads are not used. This option currently has no dedicated setup screen.
 
+## BLACKSITE 0.21
+
+Use **Assessment setup** to import HAR route metadata, configure synthetic account comparisons or explicitly approve a small resilience sample. HAR import is offline and removes captured credentials, values and bodies. Discovery-only is the default; approved synthetic GET probes run through the existing scanner and never replay captured sessions. Authenticated, ownership-sensitive and state-changing captured requests remain discovery-only.
+
+**Evidence workspace** shows the saved discovery graph, route coverage, SQL-error hypotheses, timeline and finding confidence. Counts distinguish discovery, collection and checks; legacy scans with no ledger show unknown coverage. The graph contains observed discovery links, not fabricated exploit chains.
+
+Redirect verification now uses four controlled comparisons and two independent destinations. Destinations are never followed. Session checks revalidate the primary identity before recording unexpected access. Resilience sampling is separately approved, serial, capped at 20 requests and 2 requests/second, and stops on errors, latency, backpressure or high client memory. It is not a capacity or DDoS test.
+
+Creator: [GitHub III85III](https://github.com/III85III) · [Telegram @parsamzmz](https://t.me/parsamzmz). Both links are also in the application footer.
+
 ## From URL to report
 
-1. **Choose the authorized target.** Enter its base URL and confirm the scope. The main screen uses one **Scan Website** action; optional test-account and OpenAPI setup is in its right-click menu.
+1. **Choose the authorized target.** Enter its base URL and confirm the scope. The main screen uses one **Scan Website** action; optional test-account, API, HAR and controlled resilience setup is in **Assessment setup**.
 2. **Map the application.** The native collector discovers the reachable surface and records which pages, scripts and routes led to each observation. Discovery does not authorize testing another hostname.
 3. **Run applicable checks.** Baselines, control responses, request limits and available verification methods determine what can actually be tested. Missing prerequisites remain visible as skipped, blocked or inconclusive coverage.
 4. **Inspect the evidence.** Filter the results and open a finding to review its endpoint, source, severity, confidence, verification status and remediation. Severity describes potential impact; confidence describes evidence strength.
@@ -72,13 +86,13 @@ Coverage sections distinguish operations that completed from checks that were sk
 
 Use **Windows x64**. The portable build includes Python's runtime, so a separate Python installation is not required.
 
-1. Download **[OBSIDIAN_0.20.0_Windows-x64.zip](https://github.com/III85III/attack-website-tools/releases/download/v0.20.0/OBSIDIAN_0.20.0_Windows-x64.zip)** from the release page.
+1. Download **[OBSIDIAN_0.21.0_Windows-x64.zip](https://github.com/III85III/attack-website-tools/releases/download/v0.21.0/OBSIDIAN_0.21.0_Windows-x64.zip)** from the release page.
 2. Extract the **entire ZIP** into a writable folder.
 3. Open **OBSIDIAN.exe** and keep its `_internal` folder beside it.
 4. Read the responsible-use notice, enter the authorized website URL and select **Scan Website**.
 5. Review the results and choose **Export Word report**, HTML, Markdown or JSON.
 
-Download [SHA256SUMS_0.20.0.txt](https://github.com/III85III/attack-website-tools/releases/download/v0.20.0/SHA256SUMS_0.20.0.txt) and compare the ZIP hash before use. The release is **unsigned**; a checksum checks integrity and is not a signing certificate. GitHub's automatic source archive is not the runnable Windows application.
+Download [SHA256SUMS_0.21.0.txt](https://github.com/III85III/attack-website-tools/releases/download/v0.21.0/SHA256SUMS_0.21.0.txt) and compare the ZIP hash before use. The release is **unsigned**; a checksum checks integrity and is not a signing certificate. GitHub's automatic source archive is not the runnable Windows application.
 
 ## Optional tools and prerequisites
 
@@ -88,9 +102,9 @@ Supported scanner exports, including Nuclei JSON/JSONL, SARIF and Nmap-compatibl
 
 ## Coverage, validation and privacy
 
-Version 0.20.0 passed **289 regression tests locally and in GitHub Windows CI**. Local frozen-runtime checks compared recorded requests with server-observed requests and exercised evidence persistence and report generation/reopening. Small labeled fixture corpora measure only the behaviors they contain; they do not establish complete website detection accuracy.
+Version 0.21.0 verification results are recorded in the [BLACKSITE audit](docs/BLACKSITE_AUDIT.md); CI status should be checked on the matching commit. Local frozen-runtime checks compared recorded requests with server-observed requests and exercised evidence persistence and report generation/reopening. Small labeled fixture corpora measure only the behaviors they contain; they do not establish complete website detection accuracy.
 
-This is an **unsigned release candidate**, not a complete automated replacement for a scoped penetration test. Stored/blind XSS, complete authentication lifecycles, application-specific business workflows and exhaustive dynamic JavaScript analysis remain incomplete or require explicit assessment scenarios. Visual Word page rendering remains unverified. [Read the actual verification record](docs/verification/VERIFICATION_0.20.0.json) and [implementation audit](docs/OBSIDIAN_AUDIT.md).
+This is an **unsigned release**, not a complete automated replacement for a scoped penetration test. Stored/blind XSS, complete authentication lifecycles, application-specific business workflows and exhaustive dynamic JavaScript analysis remain incomplete or require explicit assessment scenarios. Visual Word page rendering remains unverified. [Read the actual verification record](docs/verification/VERIFICATION_0.21.0.json) and [implementation audit](docs/BLACKSITE_AUDIT.md).
 
 Scan history is stored locally. Requests go from your computer to the selected target; passive certificate-transparency discovery also contacts its provider. Optional online voice sends selected text to its provider after confirmation. Protect credentials, sessions, reports and customer data, and keep them out of public issues. Software availability and the confirmation dialog do not grant permission to test a website.
 

@@ -161,7 +161,7 @@ def test_open_redirect_probe_detection():
     auditor=WebAuditorAdapter()
     def fetch(url,timeout,**kwargs):
         value=parse_qs(urlsplit(url).query)["redirect_uri"][0]
-        return _fixture_response(status=302,headers={"Location":value}) if value.startswith("https://sentinel.invalid/probe/") else _fixture_response()
+        return _fixture_response(status=302,headers={"Location":value}) if value.startswith("https://obsidian.invalid/proof/") else _fixture_response()
     auditor._bounded_get=fetch
     findings=auditor._probe_query_parameters([{"url":"https://owned.test/login?redirect_uri=home","names":["redirect_uri"]}],"fixture",None)
     assert any(row.cwe_id=="CWE-601" and row.status.value=="VALIDATED" for row in findings)

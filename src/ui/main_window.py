@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
 
 from src.ui.hud import create_obsidian_icon
 from src.ui.theme import DARK_TACTICAL_THEME
-from src.core.config import APP_VERSION
+from src.core.config import APP_VERSION, AUTHOR_TELEGRAM_URL, AUTHOR_GITHUB_URL
 
 
 class MainWindow(QMainWindow):
@@ -34,6 +34,7 @@ class MainWindow(QMainWindow):
         ("PCAP Analysis", 5),
         ("Tool Integrations", 6),
         ("Settings", 7),
+        ("Evidence workspace", 8),
     )
 
     def __init__(self):
@@ -58,7 +59,7 @@ class MainWindow(QMainWindow):
         sidebar.setObjectName("Sidebar")
         sidebar.setFixedWidth(218)
         sidebar.setStyleSheet(
-            "QFrame#Sidebar { background:#09111d; border-right:1px solid #1b3047; }"
+            "QFrame#Sidebar { background:#090a0f; border-right:1px solid #1b3047; }"
         )
         side = QVBoxLayout(sidebar)
         side.setContentsMargins(14, 22, 14, 16)
@@ -67,17 +68,17 @@ class MainWindow(QMainWindow):
         mark = QLabel()
         mark.setPixmap(create_obsidian_icon().pixmap(46, 46))
         mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        mark.setStyleSheet("font-size:35px; color:#63d8f2; font-weight:700;")
+        mark.setStyleSheet("font-size:35px; color:#c4a7ee; font-weight:700;")
         name = QLabel("OBSIDIAN")
         name.setAlignment(Qt.AlignmentFlag.AlignCenter)
         name.setStyleSheet("font-size:17px; color:#e9f5ff; font-weight:800; letter-spacing:3px;")
-        sub = QLabel("S E C U R I T Y")
+        sub = QLabel("B L A C K S I T E")
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sub.setStyleSheet("font-size:9px; color:#6d8da8; letter-spacing:2px;")
         side.addWidget(mark)
         side.addWidget(name)
         side.addWidget(sub)
-        side.addSpacing(25)
+        side.addSpacing(18)
 
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
@@ -85,7 +86,7 @@ class MainWindow(QMainWindow):
             button = QPushButton(text)
             button.setCheckable(True)
             button.setProperty("class", "NavButton")
-            button.setMinimumHeight(42)
+            button.setMinimumHeight(36)
             button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.nav_group.addButton(button, index)
             side.addWidget(button)
@@ -102,6 +103,12 @@ class MainWindow(QMainWindow):
             "color:#6f879f; font-size:10px; padding:10px; border:1px solid #1c3045; border-radius:8px;"
         )
         side.addWidget(local)
+        self.creator_links = QLabel(f'<a style="color:#c5afe0; text-decoration:none;" href="{AUTHOR_TELEGRAM_URL}">Telegram @parsamzmz</a><br><a style="color:#c5afe0; text-decoration:none;" href="{AUTHOR_GITHUB_URL}">GitHub III85III</a>')
+        self.creator_links.setOpenExternalLinks(True)
+        self.creator_links.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.creator_links.setStyleSheet("font-size:11px; padding-top:7px; color:#b8bec9;")
+        self.creator_links.setToolTip("Creator and project links. Opening a link does not send a message.")
+        side.addWidget(self.creator_links)
         layout.addWidget(sidebar)
 
         content = QWidget()
@@ -141,6 +148,8 @@ class MainWindow(QMainWindow):
             tab.refresh_scans()
         elif was_loaded and index == 4 and hasattr(tab, "refresh_telemetry"):
             tab.refresh_telemetry()
+        elif was_loaded and index == 8:
+            tab.refresh_scans()
         elif was_loaded and index == 6 and hasattr(tab, "refresh_tools"):
             tab.refresh_tools()
 
@@ -173,7 +182,9 @@ class MainWindow(QMainWindow):
             WebSecurityTab,
         )
 
+        from src.ui.intelligence_workspace import IntelligenceWorkspace
         factories = {
+            8: IntelligenceWorkspace,
             0: WebSecurityTab,
             1: OverviewTab,
             2: FindingsTab,

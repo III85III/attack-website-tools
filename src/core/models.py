@@ -61,9 +61,15 @@ class Finding:
     remediation: str = "Review configuration and apply vendor patches."
     scan_id: Optional[str] = None
 
+    @property
+    def deduplication_key(self) -> str:
+        from src.core.assessment_intelligence import finding_key
+        return finding_key(self)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
+            "deduplication_key": self.deduplication_key,
             "title": self.title,
             "description": self.description,
             "source_tool": self.source_tool,

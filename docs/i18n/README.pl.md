@@ -37,9 +37,9 @@ Windows x64 · Edge / Chrome
 
 ## Instalacja
 
-Pobierz OBSIDIAN_0.20.0_Windows-x64.zip z Releases, rozpakuj cały ZIP i otwórz OBSIDIAN.exe. Zachowaj _internal obok pliku; Python nie jest potrzebny. Potwierdź uprawnienia, wpisz URL, wybierz Scan Website, a potem Export Word report. To niepodpisane wydanie wstępne; weryfikacja przeglądarkowa wymaga zaufanego Edge lub Chrome.
+Pobierz OBSIDIAN_0.21.0_Windows-x64.zip z Releases, rozpakuj cały ZIP i otwórz OBSIDIAN.exe. Zachowaj _internal obok pliku; Python nie jest potrzebny. Potwierdź uprawnienia, wpisz URL, wybierz Scan Website, a potem Export Word report. To niepodpisane wydanie wstępne; weryfikacja przeglądarkowa wymaga zaufanego Edge lub Chrome.
 
-[Releases](https://github.com/III85III/attack-website-tools/releases/tag/v0.20.0) · [SHA256SUMS_0.20.0.txt](https://github.com/III85III/attack-website-tools/releases/download/v0.20.0/SHA256SUMS_0.20.0.txt)
+[Releases](https://github.com/III85III/attack-website-tools/releases/tag/v0.20.0) · [SHA256SUMS_0.21.0.txt](https://github.com/III85III/attack-website-tools/releases/download/v0.21.0/SHA256SUMS_0.21.0.txt)
 
 ## Pobieranie kodu
 

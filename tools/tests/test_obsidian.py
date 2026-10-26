@@ -75,8 +75,8 @@ def test_sql_error_labeled_corpus(target, path, expected):
     adapter._authorized_origin = origin(base)
     rows = adapter._controlled_sql_error(parsed, parse_qsl(parsed.query), "q", "fixture", base + "/" + path)
     assert bool(rows) is expected
-    assert len(observed) == 4
-    assert adapter._coverage.checks[-1]["state"] == "COMPLETED"
+    assert len(observed) == (1 if path == "always-error" else 3 if path == "denied" else 4)
+    assert adapter._coverage.checks[-1]["state"] == ("INCONCLUSIVE" if path in {"always-error", "denied"} else "COMPLETED")
     if rows:
         assert rows[0].cwe_id == "CWE-209"
         assert rows[0].status == FindingStatus.POTENTIAL

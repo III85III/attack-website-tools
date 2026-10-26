@@ -37,9 +37,9 @@ Windows x64 · Edge / Chrome
 
 ## Kurulum
 
-Releases üzerinden OBSIDIAN_0.20.0_Windows-x64.zip dosyasını indirip tamamını çıkartın ve OBSIDIAN.exe dosyasını açın. _internal yanında kalsın; Python gerekmez. Yetkiyi onaylayın, URL girin, Scan Website ve rapor için Export Word report seçin. İmzasız ön sürümdür; tarayıcı doğrulaması güvenilir Edge veya Chrome gerektirir.
+Releases üzerinden OBSIDIAN_0.21.0_Windows-x64.zip dosyasını indirip tamamını çıkartın ve OBSIDIAN.exe dosyasını açın. _internal yanında kalsın; Python gerekmez. Yetkiyi onaylayın, URL girin, Scan Website ve rapor için Export Word report seçin. İmzasız ön sürümdür; tarayıcı doğrulaması güvenilir Edge veya Chrome gerektirir.
 
-[Releases](https://github.com/III85III/attack-website-tools/releases/tag/v0.20.0) · [SHA256SUMS_0.20.0.txt](https://github.com/III85III/attack-website-tools/releases/download/v0.20.0/SHA256SUMS_0.20.0.txt)
+[Releases](https://github.com/III85III/attack-website-tools/releases/tag/v0.20.0) · [SHA256SUMS_0.21.0.txt](https://github.com/III85III/attack-website-tools/releases/download/v0.21.0/SHA256SUMS_0.21.0.txt)
 
 ## Kaynak kodunu alın
 

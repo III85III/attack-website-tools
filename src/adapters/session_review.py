@@ -177,12 +177,18 @@ class SessionReviewAdapter:
                                       and repeated["matches"].get("expected", False) and not repeated["body_limit_reached"])
                             value["repeat_marker_matched"] = stable
                             value["repeat_body_sha256"] = repeated.get("body_sha256")
-                            if identity == "secondary":
-                                canary = self._get(sessions[identity], config["canary"], identity_markers)
-                                stable = stable and (canary["http_status"] is not None and 200 <= canary["http_status"] < 300
-                                    and not canary["body_limit_reached"] and canary["matches"].get(identity, False)
-                                    and not any(canary["matches"].get(other, False) for other in identity_markers if other != identity))
-                                value["identity_revalidated"] = bool(stable)
+                            # Recheck the owner as well: expiry or role changes after the
+                            # initial baseline invalidate an access-control comparison.
+                            recheck_identities = ["primary"] + (["secondary"] if identity == "secondary" else [])
+                            identity_checks = {}
+                            for account in recheck_identities:
+                                canary = self._get(sessions[account], config["canary"], identity_markers)
+                                identity_checks[account] = bool(
+                                    canary["http_status"] is not None and 200 <= canary["http_status"] < 300
+                                    and not canary["body_limit_reached"] and canary["matches"].get(account, False)
+                                    and not any(canary["matches"].get(other, False) for other in identity_markers if other != account))
+                            stable = stable and all(identity_checks.values())
+                            value["identity_revalidated"] = identity_checks
                             if not stable:
                                 outcome = "INCONCLUSIVE"
                         checks.append({"check": "Declared access policy", "identity": identity, "url": sanitize_text(case["url"]),

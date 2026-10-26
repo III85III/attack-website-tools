@@ -451,12 +451,28 @@ class ReportGenerator:
         _add_table(doc, ["مشخصات", "مقدار"], meta_rows, [1.45, 5.35], font_size=9)
 
         if scan_run:
+            route_summary = next((e for e in scan_run.execution_log if e.get("operation") == "Route verification coverage"), None)
+            if route_summary:
+                _heading(doc, "پوشش مسیرهای کشف‌شده", level=2)
+                self._paragraph(doc, f"مسیر کشف‌شده: {route_summary['discovered_routes']} | مسیر دارای بررسی امنیتی ثبت‌شده: {route_summary['security_checked_discovered_routes']}. دریافت پاسخ HTTP به معنی انجام آزمون امنیتی یا اثبات امنیت مسیر نیست.")
+                gaps = [r for r in route_summary.get("routes", []) if r.get("discovered") and not r.get("security_checked")]
+                if gaps:
+                    _add_table(doc, ["روش", "مسیر", "علت یا محدودیت"], [[r["method"], r["url"], r.get("probe_limitation", "بررسی امنیتیِ تکمیل‌شده برای این مسیر ثبت نشده است.")] for r in gaps[:20]], [.6, 2.8, 3.4], font_size=9)
+                if len(gaps) > 20:
+                    self._paragraph(doc, "فقط ۲۰ مسیر اول در این جدول آمده‌اند؛ فهرست کامل در JSON ارزیابی موجود است.")
             ledger = next((e for e in scan_run.execution_log if e.get("operation") == "Verification coverage"), None)
             if ledger and ledger.get("checks"):
                 _heading(doc, "پوشش واقعی آزمون‌ها", level=2)
                 self._paragraph(doc, "COMPLETED فقط اجرای عملیات محدود نام‌برده است؛ اثبات نبود آسیب‌پذیری نیست. شمارش درخواست بخش‌های تو در تو قابل جمع‌زدن نیست.")
                 rows = [[str(c.get("check", "")), str(c.get("state", "")), str(c.get("request_count", 0)), str(c.get("reason", ""))] for c in ledger["checks"]]
                 _add_table(doc, ["آزمون", "وضعیت", "درخواست", "روش یا محدودیت"], rows, [1.35, 1.05, .6, 3.8], font_size=9)
+            resilience = next((e for e in scan_run.execution_log if e.get("operation") == "Controlled resilience sample"), None)
+            if resilience:
+                _heading(doc, "Controlled resilience sample", level=2)
+                self._paragraph(doc, resilience.get("meaning", ""))
+                self._paragraph(doc, f"Status: {resilience.get('state')} | Actual requests: {resilience.get('request_count')} | Stop: {resilience.get('stop_reason')}")
+                rows = [[str(r.get("sequence")), str(r.get("status")), str(r.get("latency_ms")), str(r.get("error_type", r.get("error")))] for r in resilience.get("observations", [])]
+                _add_table(doc, ["Request", "HTTP", "Latency ms", "Error"], rows, [.8, .8, 1.2, 4.0], font_size=9)
             api_review = next((entry for entry in scan_run.execution_log if entry.get("operation") == "API coverage"), None)
             if api_review:
                 _heading(doc, "پوشش مسیرهای API", level=2)
@@ -604,6 +620,7 @@ class ReportGenerator:
                 self._paragraph(doc, f"{index}. {step}")
         details = [
             ["شناسهٔ یافته", finding.id],
+            ["کلید تطبیق پایدار", finding.deduplication_key],
             ["زمان ثبت", _local_time(finding.timestamp)],
             ["شدت", f"{_SEVERITY_FA.get(severity, severity)} — {_SEVERITY_MEANING.get(severity, 'شدت طبق گزارش منبع ثبت شده است.')}"],
             ["مبنای شدت", finding.severity_source or "در گزارش منبع مشخص نشده است"],

@@ -173,7 +173,7 @@ def test_new_findings_reach_ui_and_all_report_formats(target,tmp_path,monkeypatc
         widget._on_scan_finished(scan,findings)
         assert widget.findings_table.rowCount()==len(findings)
         assert widget.scan_btn.text()=='Scan Website'
-        assert widget.session_btn.isHidden()
+        assert not widget.session_btn.isHidden()
         for fmt in ('json','markdown','html','docx'):
             path=export_assessment(db,scan.id,fmt,tmp_path/fmt)
             if fmt=='docx':

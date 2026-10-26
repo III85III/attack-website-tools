@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QInputDialog,
     QLineEdit,
     QListWidget,
     QMessageBox,
@@ -45,6 +46,8 @@ from src.adapters.nmap_adapter import NmapAdapter
 from src.adapters.pcap_adapter import PcapAdapter
 from src.ui.report_import_actions import ReportImportActions
 from src.adapters.web_auditor import WebAuditorAdapter
+from src.adapters.resilience_review import validate_resilience, run_resilience
+from src.core.application_map import origin as assessment_origin
 from src.adapters.session_review import SessionReviewAdapter, validate_plan
 from src.adapters.api_review import APIReviewAdapter, import_spec_file, validate_api_plan
 from src.adapters.zap_adapter import ZapAdapter
@@ -62,6 +65,8 @@ from src.core.models import (
 from src.reporting.docx_report import JSONExporter, ReportGenerator
 from src.ui.report_actions import AssessmentReportActions
 from src.ui.scan_visual import InfinityIndicator
+from src.core.traffic_inventory import validate_traffic_plan
+from src.ui.traffic_import_worker import TrafficImportWorker
 from src.system_guard.monitor import SystemGuardMonitor
 from src.voice.voice_assistant import PersianVoiceAssistant
 
@@ -85,13 +90,16 @@ class WebAuditWorker(QThread):
     progress_signal = pyqtSignal(str)
     error_signal = pyqtSignal(str)
 
-    def __init__(self, target_url: str, deep_scan: bool = False, parent=None, session_plan=None, api_plan=None):
+    def __init__(self, target_url: str, deep_scan: bool = False, parent=None, session_plan=None, api_plan=None, traffic_plan=None, traffic_probes_approved=False, resilience_plan=None):
         super().__init__(parent)
         self.target_url = target_url
         self.deep_scan = deep_scan
         self.adapter = WebAuditorAdapter()
         self.session_plan = deepcopy(session_plan)
         self.api_plan = deepcopy(api_plan)
+        self.traffic_plan = deepcopy(traffic_plan)
+        self.resilience_plan = deepcopy(resilience_plan)
+        self.traffic_probes_approved = traffic_probes_approved
 
     def run(self):
         started = time.monotonic()
@@ -124,6 +132,8 @@ class WebAuditWorker(QThread):
                     "deep_scan": self.deep_scan,
                     "progress_callback": lambda msg: self.progress_signal.emit(msg),
                     "cancel_check": self.isInterruptionRequested,
+                    "traffic_plan": self.traffic_plan,
+                    "traffic_probes_approved": self.traffic_probes_approved,
                 },
             )
             for f in findings:
@@ -196,6 +206,14 @@ class WebAuditWorker(QThread):
                     modules.append("Session/access review")
                 else:
                     optional_failures.append("Session/access review")
+
+            if self.resilience_plan:
+                self.progress_signal.emit("Running explicitly approved serial resilience sample…")
+                sample = run_resilience(self.target_url, self.resilience_plan, self.isInterruptionRequested)
+                scan_run.execution_log.append(sample)
+                scan_run.request_count += sample["request_count"]
+                if sample["state"] != "COMPLETED":
+                    optional_failures.append("Controlled resilience sample")
 
             # Use ZAP automatically when its local API is available. The one
             # confirmation dialog already warns that active probes may run.
@@ -536,7 +554,11 @@ class WebSecurityTab(QWidget):
 
 
         self.session_plan = None
+        self.resilience_plan = None
         self.api_plan = None
+        self.traffic_plan = None
+        self.traffic_probes_approved = False
+        self.traffic_worker = None
         self.setup_ui()
 
     def setup_ui(self):
@@ -547,22 +569,22 @@ class WebSecurityTab(QWidget):
         title_row = QHBoxLayout()
         title_stack = QVBoxLayout()
         title = QLabel("Web Security Scanner")
-        title.setStyleSheet("font-size:23px; font-weight:800; color:#e7f4ff;")
+        title.setStyleSheet("font-size:23px; font-weight:800; color:#eeebf4;")
         subtitle = QLabel("Enter an authorized target. OBSIDIAN collects evidence and creates a structured report.")
         subtitle.setWordWrap(True)
-        subtitle.setStyleSheet("font-size:12px; color:#8ea9c0;")
+        subtitle.setStyleSheet("font-size:12px; color:#a29aad;")
         title_stack.addWidget(title)
         title_stack.addWidget(subtitle)
         title_row.addLayout(title_stack)
         title_row.addStretch()
         badge = QLabel(f"AUTHORIZED ASSESSMENTS   •   v{APP_VERSION}")
-        badge.setStyleSheet("color:#77cce7; font-size:10px; letter-spacing:1px; border:1px solid #254864; border-radius:10px; padding:7px 10px;")
+        badge.setStyleSheet("color:#c4a7ee; font-size:10px; letter-spacing:1px; border:1px solid #4a3b58; border-radius:10px; padding:7px 10px;")
         title_row.addWidget(badge, 0, Qt.AlignmentFlag.AlignVCenter)
         layout.addLayout(title_row)
 
         hero = QFrame()
         hero.setObjectName("ScanHero")
-        hero.setStyleSheet("QFrame#ScanHero { background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #111f32,stop:1 #0b1727); border:1px solid #28415d; border-radius:15px; }")
+        hero.setStyleSheet("QFrame#ScanHero { background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #18141f,stop:1 #101015); border:1px solid #42344e; border-radius:15px; }")
         hero_row = QHBoxLayout(hero)
         hero_row.setContentsMargins(22, 17, 18, 13)
         hero_row.setSpacing(10)
@@ -578,12 +600,12 @@ class WebSecurityTab(QWidget):
         self.target_input.setPlaceholderText("https://example.com")
         self.target_input.setClearButtonEnabled(True)
         self.target_input.setMinimumHeight(48)
-        self.target_input.setStyleSheet("QLineEdit#TargetUrl { font-size:15px; padding:10px 13px; border-radius:9px; background:#081422; border:1px solid #31516d; }")
+        self.target_input.setStyleSheet("QLineEdit#TargetUrl { font-size:15px; padding:10px 13px; border-radius:9px; background:#111019; border:1px solid #51415f; }")
         self.target_input.returnPressed.connect(self.start_scan)
         form.addWidget(self.target_input)
 
-        engines = QLabel("AUTOMATIC ASSESSMENT • OPTIONAL ACCOUNT/API SETUP: RIGHT-CLICK SCAN")
-        engines.setStyleSheet("color:#63849f; font-size:10px; letter-spacing:1px;")
+        engines = QLabel("AUTOMATIC ASSESSMENT • ADD TEST ACCOUNTS FOR ACCESS-CONTROL CHECKS")
+        engines.setStyleSheet("color:#9b8ca8; font-size:10px; letter-spacing:1px;")
         form.addWidget(engines)
 
         actions = QHBoxLayout()
@@ -595,16 +617,18 @@ class WebSecurityTab(QWidget):
         self.scan_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.scan_btn.clicked.connect(self.start_scan)
         actions.addWidget(self.scan_btn)
-        self.session_btn = QPushButton("Advanced Setup (Optional)")
+        self.session_btn = QPushButton("Assessment setup")
         self.session_btn.setToolTip("Optional: Full automated scan already runs headers, exposed files, crawler, API discovery, ZAP & Nmap. Use this menu only if you need custom session cookies or manual Swagger upload.")
         setup_menu = QMenu(self.session_btn)
         setup_menu.addAction("Test sessions / access rules (Optional)", self.configure_session_review)
         setup_menu.addAction("Import OpenAPI / Swagger JSON (Optional)", self.import_api_definition)
         setup_menu.addAction("Clear API definition", self.clear_api_definition)
+        self.import_traffic_action = setup_menu.addAction("Import HAR route discovery", self.import_traffic)
+        setup_menu.addAction("Clear imported traffic", self.clear_traffic)
+        setup_menu.addAction("Configure controlled resilience sample", self.configure_resilience)
         self.session_btn.setMenu(setup_menu)
-        # Keep optional account/schema setup accessible without a second scan-mode control.
-        self.session_btn.setParent(self)
-        self.session_btn.hide()
+        # One scanner, with a visible menu for optional account/API evidence.
+        actions.addWidget(self.session_btn)
         self.scan_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.scan_btn.customContextMenuRequested.connect(lambda point: setup_menu.exec(self.scan_btn.mapToGlobal(point)))
         self.scan_btn.setToolTip("Automatic assessment. Right-click for optional test-account or OpenAPI setup.")
@@ -623,7 +647,7 @@ class WebSecurityTab(QWidget):
 
         self.scan_status = QLabel("Enter a website URL.")
         self.scan_status.setWordWrap(True)
-        self.scan_status.setStyleSheet("color:#8ea9c0; padding:2px 4px;")
+        self.scan_status.setStyleSheet("color:#a29aad; padding:2px 4px;")
         layout.addWidget(self.scan_status)
         self.coverage_note = QLabel()
         self.coverage_note.setWordWrap(True)
@@ -653,13 +677,13 @@ class WebSecurityTab(QWidget):
         self.filter_input = QLineEdit()
         self.filter_input.setPlaceholderText("🔍 Filter findings by keyword, CWE, component, or title...")
         self.filter_input.setClearButtonEnabled(True)
-        self.filter_input.setStyleSheet("font-size:12px; padding:6px 10px; border-radius:6px; background:#081422; border:1px solid #263c52; color:#d8e6f3;")
+        self.filter_input.setStyleSheet("font-size:12px; padding:6px 10px; border-radius:6px; background:#111019; border:1px solid #263c52; color:#d8e6f3;")
         self.filter_input.textChanged.connect(self._apply_findings_filter)
         filter_row.addWidget(self.filter_input, 3)
 
         self.sev_filter = QComboBox()
         self.sev_filter.addItems(["All Severities", "CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"])
-        self.sev_filter.setStyleSheet("font-size:12px; padding:5px 8px; border-radius:6px; background:#081422; border:1px solid #263c52; color:#d8e6f3;")
+        self.sev_filter.setStyleSheet("font-size:12px; padding:5px 8px; border-radius:6px; background:#111019; border:1px solid #263c52; color:#d8e6f3;")
         self.sev_filter.currentIndexChanged.connect(self._apply_findings_filter)
         filter_row.addWidget(self.sev_filter, 1)
 
@@ -680,6 +704,27 @@ class WebSecurityTab(QWidget):
         self.report_actions = AssessmentReportActions(self)
         self.report_actions.busy_changed.connect(self.scan_btn.setDisabled)
         layout.addWidget(self.report_actions)
+
+    def configure_resilience(self):
+        target = self.target_input.text().strip()
+        valid, message, target = WebAuditorAdapter.validate_target_url(target)
+        if not valid:
+            QMessageBox.warning(self, "Resilience setup", message)
+            return
+        count, ok = QInputDialog.getInt(self, "Controlled endpoint sample", "Read-only GET request budget (1–20):", 5, 1, 20)
+        if not ok:
+            return
+        rate, ok = QInputDialog.getDouble(self, "Controlled endpoint sample", "Requests per second (0.2–2):", 1, .2, 2, 1)
+        if not ok:
+            return
+        approval = QMessageBox.question(self, "Owned system approval",
+            f"Enable a serial GET sample for {target}? Confirm you own this system and this endpoint is read-only. "
+            "Stops on backpressure, errors, latency >=2 seconds or high client memory. "
+            "Maximum 30 seconds of new-request admission. Existing scans run separately. "
+            "This is a small endpoint sample, not a capacity test. Choose No to clear setup.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        self.resilience_plan = {"owned_read_only_approved": True, "approved_origin": assessment_origin(target),
+            "requests": count, "rate": rate, "duration_seconds": 30, "concurrency": 1} if approval == QMessageBox.StandardButton.Yes else None
 
     def configure_session_review(self):
         from src.ui.session_review_dialog import SessionReviewDialog
@@ -723,12 +768,55 @@ class WebSecurityTab(QWidget):
         self.session_btn.setText("Assessment setup · configured" if self.session_plan else "Assessment setup")
         self.scan_status.setText("API definition cleared. The normal website scanner remains available.")
 
+    def import_traffic(self):
+        if self.traffic_worker and self.traffic_worker.isRunning():
+            return
+        if getattr(self, "web_worker", None) and self.web_worker.isRunning():
+            return
+        valid, message, target = WebAuditorAdapter.validate_target_url(self.target_input.text())
+        if not valid:
+            QMessageBox.warning(self, "Traffic scope", message); return
+        filename, _ = QFileDialog.getOpenFileName(self, "Import scoped HTTP archive", "", "HTTP archive (*.har *.json)")
+        if not filename:
+            return
+        self.import_traffic_action.setEnabled(False)
+        self.traffic_worker = TrafficImportWorker(filename, target, self)
+        self.traffic_worker.result.connect(self._traffic_imported)
+        self.traffic_worker.finished.connect(lambda: self.import_traffic_action.setEnabled(True))
+        self.traffic_worker.start()
+
+    def _traffic_imported(self, plan, error):
+        if error:
+            self.scan_status.setText(error); return
+        valid, _message, target = WebAuditorAdapter.validate_target_url(self.target_input.text())
+        try:
+            if not valid:
+                raise ValueError("Target changed while traffic was loading")
+            plan = validate_traffic_plan(target, plan)
+        except ValueError:
+            self.scan_status.setText("Imported traffic does not match the current target. Import again for the correct scope."); return
+        self.traffic_plan = plan
+        eligible = sum(row["probe_eligible"] for row in plan["routes"])
+        self.traffic_probes_approved = False
+        if eligible:
+            decision = QMessageBox.question(self, "Imported route authorization",
+                f"{eligible} query routes are eligible for synthetic GET probes in the next scan. Confirm these routes are authorized and read-only. Captured values, authentication and request bodies are never replayed. No writes or authenticated resource guesses will be sent.\n\nYes: approve bounded synthetic probes. No: discovery metadata only.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+            self.traffic_probes_approved = decision == QMessageBox.StandardButton.Yes
+        self.scan_status.setText(f"HAR loaded: {len(plan['routes'])} scoped route observations; synthetic probes {'approved' if self.traffic_probes_approved else 'not approved'}. No traffic has been sent by import.")
+
+    def clear_traffic(self):
+        self.traffic_plan = None; self.traffic_probes_approved = False
+        self.scan_status.setText("Imported traffic cleared.")
+
     def start_scan(self):
         if getattr(self, "web_worker", None) and self.web_worker.isRunning():
             self.web_worker.requestInterruption()
             self.scan_btn.setText("Stopping…")
             self.scan_btn.setEnabled(False)
             self.scan_status.setText("Stop requested. Waiting for the current bounded operation to finish.")
+            return
+        if self.traffic_worker and self.traffic_worker.isRunning():
             return
         if self.report_actions.worker and self.report_actions.worker.isRunning():
             return
@@ -742,6 +830,17 @@ class WebSecurityTab(QWidget):
             QMessageBox.critical(self, "Invalid URL", validation_message)
             return
         target = normalized_target
+        if self.resilience_plan:
+            try:
+                validate_resilience(target, self.resilience_plan)
+            except ValueError as exc:
+                QMessageBox.warning(self, "Resilience scope", str(exc))
+                return
+        if self.traffic_plan:
+            try:
+                self.traffic_plan = validate_traffic_plan(target, self.traffic_plan)
+            except ValueError as exc:
+                QMessageBox.warning(self, "Traffic scope", str(exc)); return
         if self.api_plan:
             try:
                 validate_api_plan(target, self.api_plan)
@@ -761,6 +860,7 @@ class WebSecurityTab(QWidget):
             "OBSIDIAN will run a deep web assessment. If local OWASP ZAP or Nmap is installed, those scanners will also run against this host. Active probes may affect the service. "
             + (f"Supplied sessions will also be used on the canary and {len(self.session_plan['cases'])} declared read-only path(s); the session values are not passed to ZAP or Nmap. " if self.session_plan else "")
             + ("The imported API definition will also be reviewed with up to 20 anonymous GET operations and bounded query probes. Verify these GET routes are read-only. " if self.api_plan else "")
+            + (f"Imported HAR metadata includes {len(self.traffic_plan['routes'])} scoped routes; synthetic probes approved={self.traffic_probes_approved}. " if self.traffic_plan else "")
             + "Continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
@@ -788,7 +888,7 @@ class WebSecurityTab(QWidget):
         self.empty_results.setText("Scanning website...")
         self.empty_results.show()
         self.scan_status.setText("Scanning website…")
-        self.web_worker = WebAuditWorker(target, deep_scan=True, parent=self, session_plan=self.session_plan, api_plan=self.api_plan)
+        self.web_worker = WebAuditWorker(target, deep_scan=True, parent=self, session_plan=self.session_plan, api_plan=self.api_plan, traffic_plan=self.traffic_plan, traffic_probes_approved=self.traffic_probes_approved, resilience_plan=self.resilience_plan)
         self.web_worker.progress_signal.connect(self._on_scan_progress)
         self.web_worker.finished_signal.connect(self._on_scan_finished)
         self.web_worker.error_signal.connect(self._on_scan_error)
@@ -1303,11 +1403,11 @@ class ReportsTab(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(14)
         header = QLabel("Assessment reports")
-        header.setStyleSheet("font-size:23px;font-weight:800;color:#e7f4ff;")
+        header.setStyleSheet("font-size:23px;font-weight:800;color:#eeebf4;")
         layout.addWidget(header)
         intro = QLabel("Choose an assessment. Word and JSON include the same findings from that target and its engine runs.")
         intro.setWordWrap(True)
-        intro.setStyleSheet("color:#8ea9c0;")
+        intro.setStyleSheet("color:#a29aad;")
         layout.addWidget(intro)
         selection = QHBoxLayout()
         self.scan_combo = QComboBox()

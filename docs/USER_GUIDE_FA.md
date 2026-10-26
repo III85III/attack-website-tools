@@ -2,7 +2,7 @@
 
 ## شروع سریع
 
-1. در پوشهٔ اصلی پروژه، `OPEN SENTINEL.exe` را اجرا کنید؛ در بستهٔ قابل‌حمل، `OBSIDIAN.exe` را کنار پوشهٔ `_internal` نگه دارید.
+1. در پوشهٔ اصلی پروژه، `OPEN OBSIDIAN.exe` را اجرا کنید؛ در بستهٔ قابل‌حمل، `OBSIDIAN.exe` را کنار پوشهٔ `_internal` نگه دارید.
 2. URL پایهٔ یک وب‌سایت مجاز را وارد کنید؛ نمونه: `https://example.org/`.
 3. در صفحهٔ **Scanner**، گزینهٔ **Scan Website** را بزنید.
 4. در پنجرهٔ بعدی هدف، محدوده و مجوز را کنترل و تأیید کنید.
@@ -55,3 +55,13 @@ Nmap، Wireshark/TShark و OWASP ZAP همراه برنامه نصب نمی‌ش�
 
 
 OBSIDIAN 0.20.0 preserves existing `sentinel.db` history in place. New installs use the OBSIDIAN state folder; an existing legacy state folder takes precedence. Select **Stop Scan** to request cancellation. Native collection stops before the next request; an optional scanner already running may finish its bounded operation first. HTTP 429/503 stops further native collection. See `OBSIDIAN_AUDIT.md` for verified capabilities and limitations.
+
+## نسخهٔ BLACKSITE
+
+تنظیمات اختیاری در منوی قابل‌مشاهدهٔ **Assessment setup** قرار دارد. ورود HAR صرفاً اطلاعات مسیر را می‌خواند؛ مقدار query، بدنه و credential ذخیره یا بازپخش نمی‌شود. حالت پیش‌فرض فقط کشف مسیر است. آزمون query مصنوعی به تأیید جداگانه نیاز دارد و مسیرهای دارای نشست، مالکیت یا روش تغییردهنده را اجرا نمی‌کند.
+
+در **Evidence workspace** نقشهٔ کشف، پوشش واقعی، فرضیه‌های خطای دیتابیس، خط زمانی و شواهد یافته‌ها را ببینید. نقشه اثبات زنجیرهٔ نفوذ نیست. کنترل دسترسی به نشست آزمایشی معتبر، صفحهٔ شناسایی حساب و نشانگر محتوای محافظت‌شده نیاز دارد؛ برنامه رمز حدس نمی‌زند.
+
+گزینهٔ **Configure controlled resilience sample** با تأیید مالکیت و خواندنی‌بودن مسیر، حداکثر ۲۰ درخواست ترتیبی با سقف ۲ درخواست در ثانیه اجرا می‌کند. روی خطا، کندی، پاسخ 429/503، مصرف زیاد حافظهٔ کلاینت یا درخواست توقف، ادامه متوقف می‌شود. این نمونه‌برداری ظرفیت سرور یا مقاومت در برابر DDoS را اثبات نمی‌کند. مدت ۳۰ ثانیه سقف شروع درخواست جدید است و درخواست در حال اجرا تابع timeout انتقال است. نتیجه در Word و JSON ثبت می‌شود.
+
+لینک‌های تلگرام **@parsamzmz** و گیت‌هاب **III85III** در پایین برنامه هستند.

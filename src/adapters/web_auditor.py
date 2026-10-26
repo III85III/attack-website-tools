@@ -22,8 +22,10 @@ import requests
 from src.adapters.base import BaseToolAdapter
 from src.adapters.browser_xss import BrowserXSSVerifier, MAX_BROWSER_CANDIDATES
 from src.core.application_map import ApplicationMap, origin as map_origin, safe_url as map_safe_url, read_only_candidate
-from src.core.privacy import sanitize_data
+from src.core.privacy import sanitize_data, sanitize_text
 from src.core.coverage import CoverageLedger
+from src.core.traffic_inventory import validate_traffic_plan, synthetic_input_points
+from src.core.assessment_intelligence import route_coverage, sql_hypothesis
 from src.core.evidence import distinct_findings
 from src.core.cve_intel import CVEIntelligenceEngine
 from src.core.models import (
@@ -363,6 +365,7 @@ class WebAuditorAdapter(BaseToolAdapter):
         self._scan_metrics: Dict[str, Any] = {}
         self._coverage = CoverageLedger()
         self._browser_checks: List[Dict[str, Any]] = []
+        self._hypotheses = []
 
     def detect(self) -> ToolHealthInfo:
         return ToolHealthInfo(
@@ -424,6 +427,7 @@ class WebAuditorAdapter(BaseToolAdapter):
         """
         findings: List[Finding] = []
         self._coverage = CoverageLedger()
+        self._hypotheses = []
         self._browser_checks = []
         self._discovered_endpoints = []
         self._collected_scripts_text = []
@@ -459,6 +463,35 @@ class WebAuditorAdapter(BaseToolAdapter):
                 evidence_summary="No traffic was sent because the target URL is invalid.",
                 remediation="Enter an HTTP or HTTPS base URL for a target you own or have explicit authorization to assess.",
             )]
+
+        traffic = getattr(self, "_traffic_plan", None)
+        if traffic:
+            findings.append(Finding(scan_id=scan_id, title="Imported HTTP traffic route inventory", description="Routes observed in an operator-supplied HAR, not a live scan or proof of vulnerability. Captured headers, cookies, bodies and query values were discarded.",
+                source_tool="HAR route discovery", target=url, severity=FindingSeverity.INFO,
+                severity_source="Supplied capture metadata", confidence=FindingConfidence.HIGH,
+                confidence_justification="Parsed bounded HAR with a source SHA-256; live reachability and identity not inferred.",
+                status=FindingStatus.OBSERVED, evidence_raw=json.dumps(traffic),
+                evidence_summary=f"{len(traffic['routes'])} in-scope routes; synthetic probes enabled={getattr(self, '_traffic_probes', False)}",
+                remediation="Review scope, read-only semantics and synthetic-account prerequisites before testing imported routes."))
+            for item in traffic["routes"]:
+                context = "captured-authenticated-not-replayed" if item["authentication_recorded"] else "anonymous"
+                prior_nodes = set(self._application_map.nodes)
+                key = self._application_map.add(item["url"], "imported_route", method=item["method"])
+                if key:
+                    # Keep credential-context observations distinct even when URL/method match.
+                    if context != "anonymous":
+                        node = dict(self._application_map.nodes[key])
+                        if key not in prior_nodes:
+                            self._application_map.nodes.pop(key)
+                        if len(self._application_map.nodes) >= self._application_map.MAX_NODES:
+                            self._application_map.truncated = True
+                            continue
+                        key += "-authenticated"
+                        node["id"] = key
+                        self._application_map.nodes[key] = node
+                    self._application_map.nodes[key]["identity_context"] = context
+                    self._application_map.nodes[key]["capture_source_sha256"] = traffic["source_sha256"]
+            self._coverage.record("HAR route discovery", "COMPLETED", "Offline metadata parsed; no captured requests or credentials replayed.", 0)
 
         if progress_callback:
             progress_callback(f"Connecting to {url}...")
@@ -557,6 +590,15 @@ class WebAuditorAdapter(BaseToolAdapter):
 
         # Merge discovered API endpoints into input points for active parameter testing
         discovered_input_points = list(inventory.get("input_points", []))
+        if traffic:
+            if getattr(self, "_traffic_probes", False):
+                # A HAR may repeat a live-discovered route. Prefer its real
+                # crawl defaults; do not run a second synthetic copy of that signature.
+                live_signatures = {map_safe_url(point["url"]) for point in discovered_input_points}
+                discovered_input_points.extend(point for point in synthetic_input_points(traffic)
+                    if map_safe_url(point["url"]) not in live_signatures)
+            else:
+                self._coverage.record("HAR synthetic query checks", "BLOCKED", "Operator has not approved read-only synthetic probes for imported routes.")
         if hasattr(self, "_discovered_endpoints") and self._discovered_endpoints:
             for ep in self._discovered_endpoints:
                 if len(discovered_input_points) >= MAX_ACTIVE_PARAMETERS:
@@ -571,6 +613,8 @@ class WebAuditorAdapter(BaseToolAdapter):
                             "names": names[:MAX_ACTIVE_PARAMETERS],
                         })
 
+        for point in discovered_input_points:
+            self._application_map.add(point["url"], "input_route", method="GET")
         if deep_scan:
             findings.extend(self._covered_operation("Discovered GET input checks", self._probe_query_parameters, discovered_input_points, scan_id, progress_callback))
 
@@ -1214,7 +1258,7 @@ class WebAuditorAdapter(BaseToolAdapter):
                 self._scan_metrics["errors"].append("target_backpressure_stop")
         if hasattr(self, "_request_evidence") and len(self._request_evidence) < 240:
             self._request_evidence.append({"method": method, "url": map_safe_url(url), "status": response.status_code,
-                "body_bytes_collected": len(response._content), "response_sha256": hashlib.sha256(response._content).hexdigest()})
+                "collected_at_utc": datetime.now(timezone.utc).isoformat(), "body_bytes_collected": len(response._content), "response_sha256": hashlib.sha256(response._content).hexdigest()})
         return response
 
     def _crawl_same_origin(self, start_url: str, first_response: Any, progress_callback: Optional[Any]) -> Dict[str, Any]:
@@ -1383,6 +1427,60 @@ class WebAuditorAdapter(BaseToolAdapter):
                 remediation='Allow only trusted origins, use Vary: Origin where responses vary, and validate actual protected-data access with authorized test accounts.'))
         return findings
 
+    def _verify_open_redirect(self, original, pairs, parameter, scan_id, safe_target):
+        """Reviewed GET-only verifier: baseline, relative control, two unique destinations."""
+        started = datetime.now(timezone.utc).isoformat()
+        observations = []
+        state, reason = "INCONCLUSIVE", "Verification did not complete."
+        proof = False
+        challenges = ["https://obsidian.invalid/proof/" + secrets.token_hex(12) for _ in range(2)]
+        attempts = [("baseline", None), ("relative_control", "/obsidian-control-" + secrets.token_hex(8)),
+                    ("challenge_1", challenges[0]), ("challenge_2", challenges[1])]
+        try:
+            for role, value in attempts:
+                query = pairs if value is None else [(name, value if name == parameter else current) for name, current in pairs]
+                address = urlunparse(original._replace(query=urlencode(query, doseq=True)))
+                response = self._bounded_get(address, timeout=5)
+                location = response.headers.get("Location", "")
+                observations.append({"role": role, "request": {"method": "GET", "url": map_safe_url(address),
+                    "synthetic_input": value, "headers": "not retained"},
+                    "response": {"status": response.status_code, "location": sanitize_text(location),
+                    "sha256": hashlib.sha256(response.content).hexdigest()},
+                    "collected_at_utc": datetime.now(timezone.utc).isoformat()})
+                if not 200 <= response.status_code < 400:
+                    reason = "A denied, failed or backpressure response prevented a controlled comparison."
+                    break
+                if role.startswith("challenge") and not (response.status_code in {301, 302, 303, 307, 308} and location == value):
+                    state, reason = "COMPLETED", "The supplied destination was not reproduced as an HTTP redirect."
+                    break
+            else:
+                proof = all(item["response"]["location"] not in challenges for item in observations[:2])
+                state = "COMPLETED"
+                reason = "Two independent destinations matched; baseline and relative control did not match either destination." if proof else "A control contradicted the redirect hypothesis."
+        except requests.RequestException as exc:
+            reason = "Controlled redirect verification interrupted: " + type(exc).__name__
+        evidence = {"module": "controlled_open_redirect_v2", "method": "GET", "parameter": parameter,
+            "started_at_utc": started, "completed_at_utc": datetime.now(timezone.utc).isoformat(),
+            "outcome": "VERIFIED" if proof else "NOT_REPRODUCED" if state == "COMPLETED" else "INCONCLUSIVE",
+            "rule": "Both unique external synthetic destinations must match Location exactly after successful controls.",
+            "observations": observations, "request_budget": 4, "redirects_followed": False,
+            "limitations": "Only the redirect response is established; no destination visit or credential interaction.",
+            "reproduction_steps": ["Repeat the recorded relative control on the authorized route.",
+                "Supply each synthetic destination separately and compare the status and Location header.",
+                "Do not follow the external redirects."], "demonstrated_impact": "Untrusted input controls an external HTTP redirect."}
+        self._coverage.record("Controlled open redirect", state, reason, len(observations),
+            route=map_safe_url(original.geturl()), parameter=parameter, method="GET", verification=evidence)
+        if not proof:
+            return []
+        return [Finding(scan_id=scan_id, title=f"Validated Open Redirect via Parameter '{parameter}'",
+            description="Two independent harmless external destinations were reproduced in redirect responses; controls excluded fixed redirects. No external destination was contacted.",
+            source_tool=self.name, tool_version=self.version, target=safe_target,
+            severity=FindingSeverity.MEDIUM, severity_source="Repeatable externally controlled HTTP redirect",
+            confidence=FindingConfidence.CONFIRMED, confidence_justification=reason,
+            status=FindingStatus.VALIDATED, cwe_id="CWE-601", evidence_raw=json.dumps(evidence),
+            evidence_summary="Four response comparisons; two exact independent destination matches; redirects not followed.",
+            remediation="Restrict navigation to explicitly allowed same-origin paths; reject external destinations.")]
+
     def _verify_template_arithmetic(self, original, pairs, parameter, scan_id, safe_target):
         """Require two independent benign arithmetic challenges, not a fixed number."""
         for opening, closing, label in [('{{', '}}', 'double braces'), ('${', '}', 'dollar braces'), ('<%=', '%>', 'template expression')]:
@@ -1445,17 +1543,29 @@ class WebAuditorAdapter(BaseToolAdapter):
             try:
                 response = self._bounded_get(url, timeout=6)
             except requests.RequestException:
-                self._coverage.record("SQL error differential", "INCONCLUSIVE", "A required response was unavailable.", len(observations), target=safe_target, parameter=parameter)
+                self._coverage.record("SQL error differential", "INCONCLUSIVE", "A required response was unavailable.", len(observations), target=safe_target, route=map_safe_url(original.geturl()), parameter=parameter)
+                self._hypotheses.append(sql_hypothesis(safe_target, parameter, observations, [], []))
                 return []
             body = _probe_text(response).casefold()
             engines = sorted(engine for engine, signatures in SQL_ERROR_SIGNATURES.items() if any(sig in body for sig in signatures))
             observations.append({"role": label, "status": response.status_code, "engines": engines,
                 "response_sha256": hashlib.sha256(response.content).hexdigest()})
+            blocked = response.status_code in {401, 403, 429, 503} or 300 <= response.status_code < 400
+            ambiguous_control = label in {"baseline", "control"} and (engines or not 200 <= response.status_code < 300)
+            if blocked or ambiguous_control:
+                reason = "Access/redirect/backpressure prevents this verification." if blocked else "Database error or unsuccessful response already present in a control; quote attribution is inconclusive."
+                self._coverage.record("SQL error differential", "INCONCLUSIVE", reason, len(observations), target=safe_target, route=map_safe_url(original.geturl()), parameter=parameter)
+                hypothesis = sql_hypothesis(safe_target, parameter, observations, [], [])
+                hypothesis["stop_reason"] = reason
+                hypothesis["decision"] = "Do not send remaining probes; restore a valid baseline or review error handling before a new authorized test."
+                self._hypotheses.append(hypothesis)
+                return []
         initial = set(observations[0]["engines"]) | set(observations[1]["engines"])
         repeated = (set(observations[2]["engines"]) & set(observations[3]["engines"])) - initial
         # An upstream denial/challenge is not database error evidence.
         repeated = repeated if all(o["status"] not in {401, 403, 429} for o in observations) else set()
-        self._coverage.record("SQL error differential", "COMPLETED", "Baseline, alphanumeric control and two quote responses compared; no extraction or timing payloads.", 4, target=safe_target, parameter=parameter, new_repeated_signatures=sorted(repeated))
+        self._coverage.record("SQL error differential", "COMPLETED", "Baseline, alphanumeric control and two quote responses compared; no extraction or timing payloads.", 4, target=safe_target, route=map_safe_url(original.geturl()), parameter=parameter, new_repeated_signatures=sorted(repeated))
+        self._hypotheses.append(sql_hypothesis(safe_target, parameter, observations, sorted(repeated), []))
         if not repeated:
             return []
         engine = sorted(repeated)[0]
@@ -1465,7 +1575,7 @@ class WebAuditorAdapter(BaseToolAdapter):
             severity=FindingSeverity.MEDIUM, severity_source="Repeated database error disclosure; no extraction or authorization impact established",
             confidence=FindingConfidence.HIGH, confidence_justification="Same signature in two quote responses and neither control response.",
             status=FindingStatus.POTENTIAL, cwe_id="CWE-209",
-            evidence_raw=json.dumps({"verification_method": "controlled_sql_error_differential", "parameter": parameter,
+            evidence_raw=json.dumps({"verification_method": "controlled_sql_error_differential", "method": "GET", "parameter": parameter,
                 "observations": observations, "control_value": marker,
                 "prerequisites": "Authorized read-only query endpoint; restore original non-test query values locally.",
                 "reproduction_steps": ["Request the endpoint with its original input and record status and database error signatures.",
@@ -1608,36 +1718,7 @@ class WebAuditorAdapter(BaseToolAdapter):
 
                 # Check for Open Redirect on redirect-like parameters
                 if re.search(r"(?i)^(redirect|redirect_uri|redir|url|next|return|return_to|dest|destination|target|to|uri|link|forward|out)$", parameter):
-                    redir_target = "https://sentinel.invalid/probe/" + secrets.token_hex(10)
-                    redir_pairs = [(name, redir_target if name == parameter else value) for name, value in pairs]
-                    redir_url = urlunparse(original._replace(query=urlencode(redir_pairs, doseq=True)))
-                    try:
-                        redir_resp = self._bounded_get(redir_url, timeout=5)
-                        if redir_resp.status_code in {301, 302, 303, 307, 308}:
-                            loc = redir_resp.headers.get("Location", "")
-                            if loc == redir_target:
-                                findings.append(Finding(
-                                    scan_id=scan_id,
-                                    title=f"Validated Open Redirect via Parameter '{parameter}'",
-                                    description=(
-                                        f"Parameter '{parameter}' triggers an immediate HTTP {redir_resp.status_code} redirect to external domain: '{loc}'. "
-                                        "Attackers can leverage this to create convincing phishing vectors using this trusted domain."
-                                    ),
-                                    source_tool=self.name,
-                                    tool_version=self.version,
-                                    target=safe_target,
-                                    severity=FindingSeverity.MEDIUM,
-                                    severity_source=f"Observed HTTP {redir_resp.status_code} redirect to external probe target",
-                                    confidence=FindingConfidence.CONFIRMED,
-                                    confidence_justification="Location header reflects the untrusted external domain probe",
-                                    status=FindingStatus.VALIDATED,
-                                    evidence_raw=json.dumps({"parameter": parameter, "status_code": redir_resp.status_code, "location": loc}),
-                                    evidence_summary=f"Parameter {parameter} redirected to probe target ({redir_resp.status_code} -> {loc})",
-                                    cwe_id="CWE-601",
-                                    remediation="Use a whitelist of allowed relative URLs or validate destination against trusted same-origin paths.",
-                                ))
-                    except requests.RequestException:
-                        pass
+                    findings.extend(self._verify_open_redirect(original, pairs, parameter, scan_id, safe_target))
 
                 findings.extend(self._verify_template_arithmetic(original, pairs, parameter, scan_id, safe_target))
 
@@ -2158,6 +2239,10 @@ class WebAuditorAdapter(BaseToolAdapter):
         scan_run: ScanRun,
         options: Optional[Dict[str, Any]] = None,
     ) -> Tuple[ScanRun, List[Finding]]:
+        self._traffic_plan = None
+        self._traffic_probes = (options or {}).get("traffic_probes_approved") is True
+        if (options or {}).get("traffic_plan") is not None:
+            self._traffic_plan = validate_traffic_plan(target, options["traffic_plan"])
         self._cancel_check = (options or {}).get("cancel_check")
         self._was_cancelled = False
         self._canary_files = []
@@ -2276,10 +2361,17 @@ class WebAuditorAdapter(BaseToolAdapter):
         self._coverage.record("Browser reflected XSS", "COMPLETED" if self._browser_checks and all(x.get("script_execution_verified") for x in self._browser_checks) else "INCONCLUSIVE" if self._browser_checks else "SKIPPED", "Only selected reflected candidates; inspect per-attempt browser evidence.", sum(x.get("request_count", 0) for x in self._browser_checks))
         for check, reason in (("Stored XSS", "Requires a declared synthetic write/read workflow."), ("Command injection", "No command execution checks are implemented."), ("SSRF callbacks", "Requires an explicitly approved callback receiver; no internal address probes."), ("Business logic and mass assignment", "Requires synthetic reversible workflow and declared expected transitions."), ("Access control and sessions", "Separate declared multi-identity adapter; inspect its session review entry if configured.")):
             self._coverage.record(check, "BLOCKED", reason)
+        for check in ("NoSQL injection", "File upload validation", "Host-header trust", "Parser/deserialization exploitation", "Authentication/MFA/reset lifecycle", "GraphQL authorization", "Workflow/race verification"):
+            self._coverage.record(check, "BLOCKED", "No reviewed execution module with declared synthetic prerequisites is configured; this class was not tested.")
         if getattr(self, "_collection_stop", None):
             self._coverage.record("Target availability", "BLOCKED", self._collection_stop)
         scan_run.execution_log.append({"operation": "Native request provenance", "requests": getattr(self, "_request_evidence", []),
             "query_values_retained": False, "redirects_followed": False})
+        for hypothesis in self._hypotheses:
+            hypothesis["finding_ids"] = [f.id for f in findings if f.target == hypothesis["target"] and f.cwe_id == "CWE-209"]
+        scan_run.execution_log.append({"operation": "Research hypotheses", "hypotheses": sanitize_data(self._hypotheses),
+            "meaning": "Bounded SQL-error research records only. Supported candidates are not verified SQL injection or attack chains."})
+        scan_run.execution_log.append(route_coverage(graph.snapshot() if graph else {}, getattr(self, "_request_evidence", []), self._coverage.checks, findings, self._traffic_plan))
         scan_run.execution_log.append(self._coverage.snapshot())
         scan_run.execution_log.append({
             "timestamp": scan_run.end_time,

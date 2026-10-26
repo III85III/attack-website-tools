@@ -183,7 +183,7 @@ def test_worker_persists_child_review_and_exports_coverage_without_credentials(t
     assert results[0][0].status == "COMPLETED"
     assert worker.session_plan is None
     children = [scan for scan in database.list_scans() if scan.parent_scan_id == results[0][0].id]
-    assert len(children) == 1 and children[0].request_count == 9
+    assert len(children) == 1 and children[0].request_count == 11
     report = export_assessment(database, results[0][0].id, "json", tmp_path / "exports")
     payload = json.loads(report.read_text(encoding="utf-8"))
     assert any(row["operation"] == "Session/access review" for row in payload["scan"]["execution_log"])
@@ -250,3 +250,23 @@ def test_session_diagnostic_is_loopback_only_and_persists_local_findings(target,
     assert len(payload["findings"]) == 2
     assert payload["persistence_verified"] and payload["export_verified"]
     assert "QA_ALICE_SESSION" not in output.read_text()
+
+
+def test_owner_session_expiring_after_baseline_suppresses_access_finding(target, monkeypatch):
+    url, server = target
+    server.exposed = True
+    original = module.SessionReviewAdapter._get
+
+    def expire_after_owner_resource(adapter, session, address, markers):
+        result = original(adapter, session, address, markers)
+        if address.endswith("/private") and "QA_ALICE_SESSION" in session.headers.get("Cookie", ""):
+            server.expired = True
+        return result
+
+    monkeypatch.setattr(module.SessionReviewAdapter, "_get", expire_after_owner_resource)
+    scan, findings = review(url, plan())
+    assert not findings and scan.status == "PARTIAL"
+    checks = [item for item in scan.execution_log[-1]["checks"] if item["check"] == "Declared access policy"]
+    assert checks and all(item["outcome"] == "INCONCLUSIVE" for item in checks)
+    assert all(item["identity_revalidated"]["primary"] is False for item in checks)
+    assert scan.request_count == len(server.events)

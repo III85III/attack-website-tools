@@ -1,9 +1,9 @@
 # OBSIDIAN — User Guide
 
-For a ready-to-run Windows installation, download the **Windows-x64 ZIP** from [release 0.20.0](https://github.com/III85III/attack-website-tools/releases/tag/v0.20.0), extract it completely and open `OBSIDIAN.exe`. Keep `_internal` beside the EXE. You do not need Python. The [README](../README.md) includes checksum verification and source/build commands.
+For a ready-to-run Windows installation, download the **Windows-x64 ZIP** from [release 0.21.0](https://github.com/III85III/attack-website-tools/releases/tag/v0.21.0), extract it completely and open `OBSIDIAN.exe`. Keep `_internal` beside the EXE. You do not need Python. The [README](../README.md) includes checksum verification and source/build commands.
 
 
-Version 0.20.0 uses one primary **Scan Website** button. Optional supplied-account and OpenAPI setup is in the Scan button's right-click menu. Automatic discovery cannot infer credentials, object ownership or business rules; configure those explicitly when needed.
+Version 0.21.0 uses one primary **Scan Website** button. Optional account/API/HAR/resilience setup is in the visible **Assessment setup** menu; right-click remains available. Automatic discovery cannot infer credentials, object ownership or business rules; configure those explicitly when needed.
 
 ## Scan a website
 
@@ -17,7 +17,7 @@ Active scans can affect the target. Use the scanner only within your written aut
 
 ## Documented API assessment
 
-Enter the authorized target URL and choose **Scan Website (right-click) > Import OpenAPI / Swagger JSON**. JSON definitions up to 2 MB are supported for OpenAPI 3.0/3.1 and Swagger 2.0. OBSIDIAN uses the first declared server only when it matches the exact target origin; unresolved references are never downloaded. Definition examples, tokens and default values are not submitted or persisted. Re-import after changing the target origin. Clear API definition removes the setup without deleting reports.
+Enter the authorized target URL and choose **Assessment setup > Import OpenAPI / Swagger JSON**. JSON definitions up to 2 MB are supported for OpenAPI 3.0/3.1 and Swagger 2.0. OBSIDIAN uses the first declared server only when it matches the exact target origin; unresolved references are never downloaded. Definition examples, tokens and default values are not submitted or persisted. Re-import after changing the target origin. Clear API definition removes the setup without deleting reports.
 
 At scan confirmation, verify that the documented GET routes are read-only. Up to 20 concrete GET operations are requested with synthetic query values; the existing query checks cover up to ten parameters and browser verification up to three candidates within this API engine. These are separate from the website engine's counts and three-candidate budget. Each API request drops cookies received by previous responses. API sessions are anonymous and supplied account sessions are not forwarded. Operation/path server overrides, parameter references, path templates, credential-like query parameters, known state-changing route names, unsupported methods and routes beyond the limit stay NOT_TESTED with a reason.
 
@@ -81,4 +81,16 @@ Read the responsible-use notice and tick its acknowledgement before continuing. 
 The dedicated release diagnostic is loopback-only and uses synthetic local plan files for QA; it is separate from the public-website GUI workflow.
 
 
-OBSIDIAN 0.20.0 preserves existing `sentinel.db` history in place. New installs use the OBSIDIAN state folder; an existing legacy state folder takes precedence. Select **Stop Scan** to request cancellation. Native collection stops before the next request; an optional scanner already running may finish its bounded operation first. HTTP 429/503 stops further native collection. See `OBSIDIAN_AUDIT.md` for verified capabilities and limitations.
+OBSIDIAN 0.21.0 preserves existing `sentinel.db` history in place. New installs use the OBSIDIAN state folder; an existing legacy state folder takes precedence. Select **Stop Scan** to request cancellation. Native collection stops before the next request; an optional scanner already running may finish its bounded operation first. HTTP 429/503 stops further native collection. See `OBSIDIAN_AUDIT.md` for verified capabilities and limitations.
+
+## BLACKSITE evidence and controlled checks
+
+Import HAR route discovery through Assessment setup. Importing sends no requests. Captured headers, cookies, query values and bodies are discarded; method, route, query names and captured authentication context remain. Choose discovery only unless you explicitly approve synthetic read-only query probes. Only anonymous, eligible GET routes are probed; ownership/authenticated or state-changing requests remain inventory entries. Re-import after changing origins.
+
+Open Evidence workspace after a scan, select the saved assessment and refresh. Inspect the graph, route/input signatures, SQL-error hypotheses, timeline and finding confidence. A requested route is not automatically security-tested. Hypotheses currently cover SQL error disclosure only. Graph edges describe discovery and do not establish exploit chains; saved-test replay is not implemented.
+
+For admin/access testing, provide a valid synthetic administrator session as primary, a distinct lower-privilege session as secondary, the read-only account canary and explicit protected resources/markers. Leave anonymous/secondary access unchecked where access should be denied. OBSIDIAN verifies identity and repeats unexpected marker exposure. It does not guess passwords, log in automatically, infer roles or enumerate production IDs.
+
+Controlled resilience sampling is optional and requires owned/read-only endpoint approval. Configure 1–20 requests and 0.2–2 requests per second. Concurrency is fixed at one; duration admission is capped at 30 seconds. Stops include HTTP 429/503, error ratio >=30%, response latency >=2 seconds, client memory >=90%, cancellation and the request budget. Target resource usage is not measured. A request already in progress remains subject to transport timeouts and response-size limits. This is a sample, not server capacity testing. Its results are in JSON and Word and do not create fabricated vulnerabilities.
+
+Telegram @parsamzmz and GitHub III85III are clickable in the footer. They open the creator's public pages and do not send reports or messages.
