@@ -54,11 +54,13 @@ cd attack-website-tools
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements/runtime.txt
+.\.venv\Scripts\python.exe -m src
 ```
 
 [Coverage](../OBSIDIAN_AUDIT.md) · [Verification](../verification/VERIFICATION_0.20.0.json)
+
+分析将页面、表单、脚本和 API 路由与发现来源关联起来，检查响应头、Cookie、CORS、输入反射，以及可重复的数据库错误或模板计算迹象。访问控制检查需要明确提供测试账户和规则。报告区分严重性、置信度和验证状态，并列出受影响组件、脱敏证据、修复建议以及已记录的复现步骤。跳过、受阻和结论不明确的检查仍会显示；没有发现问题不等于网站已被证明安全。
 
 ## 原始文档与技术详情
 

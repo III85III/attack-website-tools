@@ -237,7 +237,7 @@ def test_transport_error_does_not_leak_credential_text(monkeypatch):
 
 
 def test_session_diagnostic_is_loopback_only_and_persists_local_findings(target, tmp_path):
-    from main import _verify_local_session_review
+    from src.__main__ import _verify_local_session_review
     url, server = target
     output = tmp_path / "verification.json"
     config = tmp_path / "plan.json"

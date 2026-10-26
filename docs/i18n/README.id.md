@@ -54,11 +54,13 @@ cd attack-website-tools
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements/runtime.txt
+.\.venv\Scripts\python.exe -m src
 ```
 
 [Coverage](../OBSIDIAN_AUDIT.md) · [Verification](../verification/VERIFICATION_0.20.0.json)
+
+Analisis menghubungkan halaman, formulir, skrip dan rute API dengan sumber penemuannya. Pemeriksaan meliputi header, cookie, CORS, refleksi input serta indikasi berulang kesalahan basis data atau evaluasi templat. Uji akses memerlukan akun uji dan aturan yang dinyatakan. Laporan memisahkan tingkat keparahan, keyakinan dan status verifikasi, disertai komponen terdampak, bukti yang disamarkan, perbaikan dan langkah reproduksi yang tercatat. Pemeriksaan yang dilewati, terhalang atau tidak pasti tetap terlihat; tidak ada temuan bukan bukti keamanan.
 
 ## Dokumentasi asli dan rincian teknis
 

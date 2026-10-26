@@ -54,11 +54,13 @@ cd attack-website-tools
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements/runtime.txt
+.\.venv\Scripts\python.exe -m src
 ```
 
 [Coverage](../OBSIDIAN_AUDIT.md) · [Verification](../verification/VERIFICATION_0.20.0.json)
+
+解析ではページ、フォーム、スクリプト、API ルートを発見元と関連付けます。ヘッダー、Cookie、CORS、入力の反射、再現可能なデータベースエラーやテンプレート計算の兆候を確認します。アクセス検査には明示したテストアカウントと規則が必要です。レポートは深刻度、確信度、検証状態を分け、対象コンポーネント、秘匿処理した証拠、修正案、記録済みの再現手順を示します。未実施、ブロック、不確定の検査も表示し、検出なしを安全の証明とはしません。
 
 ## 元のドキュメントと技術情報
 

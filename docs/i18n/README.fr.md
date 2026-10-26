@@ -54,11 +54,13 @@ cd attack-website-tools
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements/runtime.txt
+.\.venv\Scripts\python.exe -m src
 ```
 
 [Coverage](../OBSIDIAN_AUDIT.md) · [Verification](../verification/VERIFICATION_0.20.0.json)
+
+L’analyse relie pages, formulaires, scripts et routes API à leur source de découverte. Elle examine les en-têtes, cookies, CORS, réflexions d’entrée et indicateurs reproductibles d’erreurs de base de données ou d’évaluation de modèles. Les contrôles d’accès nécessitent des comptes synthétiques et des règles déclarées. Les rapports distinguent gravité, confiance et état de vérification, avec composant concerné, preuves expurgées, corrections et étapes de reproduction lorsqu’elles sont enregistrées. Les contrôles ignorés, bloqués ou incertains restent visibles ; aucune absence de résultats ne prouve la sécurité du site.
 
 ## Documentation originale et détails techniques
 

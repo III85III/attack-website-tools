@@ -70,7 +70,7 @@ def test_write_failure_allows_acknowledged_session_with_warning(tmp_path, monkey
 
 
 def test_main_exits_before_workspace_when_notice_declined(monkeypatch):
-    import main
+    from src import __main__ as main
     app = QApplication.instance() or QApplication([])
     monkeypatch.setattr(main, "QApplication", lambda *args: app)
     monkeypatch.setattr(main.sys, "argv", ["sentinel"])
@@ -80,7 +80,7 @@ def test_main_exits_before_workspace_when_notice_declined(monkeypatch):
 
 
 def test_main_starts_workspace_only_after_acknowledgement(monkeypatch):
-    import main
+    from src import __main__ as main
     from types import SimpleNamespace
     calls = []
     application = SimpleNamespace(setApplicationName=lambda value: None,

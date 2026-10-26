@@ -62,13 +62,15 @@ cd attack-website-tools
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements/runtime.txt
+.\.venv\Scripts\python.exe -m src
 ```
 
 </div>
 
 [Coverage](../OBSIDIAN_AUDIT.md) · [Verification](../verification/VERIFICATION_0.20.0.json)
+
+تجزیہ صفحات، فارم، اسکرپٹ اور API راستوں کو دریافت کے ماخذ سے جوڑتا ہے۔ ہیڈر، کوکی، CORS، ان پٹ کے انعکاس اور دوبارہ پیدا ہونے والی ڈیٹابیس خرابی یا ٹیمپلیٹ حساب کی علامات جانچی جاتی ہیں۔ رسائی کی جانچ کے لیے واضح آزمائشی اکاؤنٹ اور قواعد درکار ہیں۔ رپورٹ شدت، اعتماد اور تصدیق کی حالت الگ دکھاتی ہے، ساتھ متاثرہ جز، حساس معلومات سے پاک شواہد، اصلاح اور درج شدہ دوبارہ جانچ کے مراحل دیتی ہے۔ چھوڑے گئے، مسدود یا غیر فیصلہ کن ٹیسٹ بھی نظر آتے ہیں؛ کوئی نتیجہ نہ ملنا حفاظت کا ثبوت نہیں۔
 
 ## اصل دستاویزات اور تکنیکی تفصیلات
 

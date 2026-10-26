@@ -1,28 +1,31 @@
-# Repository layout and build commands
+# Repository layout
 
-The root keeps the application entry point, runtime dependencies, README and legal notices. Build helpers moved into `tools/`; development/build dependencies moved into `requirements/`. GitHub discovers contribution and security policies in `.github/`. Application modules and persisted data paths are unchanged.
+The repository root has five visible project items: `README.md`, `LICENSE`, `src/`, `docs/` and `tools/`. Git configuration and GitHub policies remain in their standard hidden paths.
 
-| Previous path | Current path |
+| Folder | Contents |
 |---|---|
-| `build_exe.py` | `tools/build_exe.py` |
-| `package_release.py` | `tools/package_release.py` |
-| `pyi_rth_qt6_dll.py` | `tools/pyi_rth_qt6_dll.py` |
-| `StartSentinel.cs` | `tools/StartObsidian.cs` |
-| `requirements-dev.txt` | `requirements/dev.txt` |
-| `requirements-build.txt` | `requirements/build.txt` |
-| `CONTRIBUTING.md` | `.github/CONTRIBUTING.md` |
-| `SECURITY.md` | `.github/SECURITY.md` |
+| `src/` | Existing application modules and `__main__.py` entry point |
+| `docs/` | Guides, language flags, images, audit evidence and legal notices |
+| `tools/` | Build and packaging helpers, tests and dependency lists |
 
-From the root, using the activated Python 3.11 environment:
+From the root, with Python 3.11 on Windows:
 
 ```powershell
-python -m pip install -r requirements/dev.txt
-python -m pytest tests -q
-python -m pip install -r requirements/build.txt
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements/runtime.txt
+.\.venv\Scripts\python.exe -m src
+```
+
+For development and builds, use the same environment:
+
+```powershell
+python -m pip install -r tools/requirements/dev.txt
+python -m pytest tools/tests -q
+python -m pip install -r tools/requirements/build.txt
 python tools/build_exe.py
 python tools/package_release.py
 ```
 
-Build scripts resolve the root from their own location. Packaging still refuses to overwrite an existing version. Source archives include the tools and requirement files at their current paths. Existing release tags/archives keep their original layout and checksums. This documentation change does not rebuild or replace the published 0.20.0 binary.
+The application architecture, source-state base directory and frozen state resolver remain unchanged. Existing histories and release assets are not moved or rewritten. Historical tagged source archives use their original layout. Current source packages include the relocated files; version overwrite protection remains enabled.
 
-Language flags open localized introduction and installation guides. These pages do not translate the program UI. GitHub’s About description is a single repository setting and cannot switch per reader through README links. English technical details and historical audit records remain linked separately.
+Copyright and third-party attribution remain in `docs/legal/` and are copied into portable packages. GitHub recognizes the root GPL license and `.github/` contribution/security policies. Build paths, CI, localized setup commands and test imports follow the new layout.

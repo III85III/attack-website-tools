@@ -28,7 +28,7 @@ def sha256(path: Path) -> str:
 
 
 def collect_licenses(destination: Path) -> list:
-    pending = [line.strip() for line in (BASE / "requirements.txt").read_text().splitlines()
+    pending = [line.strip() for line in (BASE / "tools" / "requirements" / "runtime.txt").read_text().splitlines()
                if line.strip() and not line.lstrip().startswith("#")]
     pending.append("PyInstaller")
     seen, components = set(), []
@@ -75,23 +75,25 @@ def package() -> Path:
         raise FileNotFoundError("Run python tools/build_exe.py before packaging.")
 
     with ZipFile(source_zip, "w", ZIP_DEFLATED) as bundle:
-        for folder, suffixes in (("src", {".py"}), ("tests", {".py"}), ("docs", {".md", ".json", ".svg"}), ("assets", {".ico", ".png", ".svg"}), ("tools", {".py", ".cs"}), ("requirements", {".txt"}), (".github", {".md", ".yml"})):
+        for folder, suffixes in (("src", {".py"}), ("docs", {".md", ".json", ".svg", ".png", ".ico"}), ("tools", {".py", ".cs", ".txt"}), (".github", {".md", ".yml"})):
             for path in sorted((BASE / folder).rglob("*")):
                 if path.is_file() and path.suffix in suffixes:
                     bundle.write(path, path.relative_to(BASE).as_posix())
-        for filename in ("main.py", "requirements.txt",
-                         "README.md", "LICENSE", "COPYRIGHT", "THIRD_PARTY_NOTICES.md"):
+        for filename in ("README.md", "LICENSE", "docs/legal/COPYRIGHT"):
             bundle.write(BASE / filename, filename)
 
     shutil.copytree(build, destination)
-    for filename in ("README.md", "LICENSE", "COPYRIGHT", "THIRD_PARTY_NOTICES.md"):
+    for filename in ("README.md", "LICENSE"):
         shutil.copy2(BASE / filename, destination / filename)
+    for filename in ("COPYRIGHT", "THIRD_PARTY_NOTICES.md"):
+        shutil.copy2(BASE / "docs" / "legal" / filename, destination / filename)
     (destination / "docs").mkdir()
     for filename in ("USER_GUIDE_EN.md", "SECURITY_MODEL.md", "RESPONSIBLE_USE.md", "RELEASE_CHECKLIST.md", "DEPTH_COVERAGE_AUDIT.md", "OBSIDIAN_AUDIT.md", f"RELEASE_NOTES_{APP_VERSION}.md"):
         shutil.copy2(BASE / "docs" / filename, destination / "docs" / filename)
     for folder in ("i18n", "images"):
         shutil.copytree(BASE / "docs" / folder, destination / "docs" / folder)
-    shutil.copytree(BASE / "assets", destination / "assets")
+    shutil.copytree(BASE / "docs" / "assets", destination / "docs" / "assets")
+    shutil.copytree(BASE / "docs" / "legal", destination / "docs" / "legal")
     (destination / ".github").mkdir()
     for filename in ("CONTRIBUTING.md", "SECURITY.md"):
         shutil.copy2(BASE / ".github" / filename, destination / ".github" / filename)

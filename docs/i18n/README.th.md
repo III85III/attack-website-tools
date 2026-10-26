@@ -54,11 +54,13 @@ cd attack-website-tools
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements/runtime.txt
+.\.venv\Scripts\python.exe -m src
 ```
 
 [Coverage](../OBSIDIAN_AUDIT.md) · [Verification](../verification/VERIFICATION_0.20.0.json)
+
+การวิเคราะห์เชื่อมโยงหน้าเว็บ ฟอร์ม สคริปต์ และเส้นทาง API กับแหล่งที่ค้นพบ ตรวจเฮดเดอร์ คุกกี้ CORS การสะท้อนอินพุต และสัญญาณข้อผิดพลาดฐานข้อมูลหรือการคำนวณเทมเพลตที่ทำซ้ำได้ การทดสอบสิทธิ์ต้องมีบัญชีทดสอบและกฎที่ระบุชัด รายงานแยกความรุนแรง ความเชื่อมั่น และสถานะยืนยัน พร้อมส่วนที่ได้รับผลกระทบ หลักฐานที่ปกปิดข้อมูลละเอียดอ่อน วิธีแก้ และขั้นตอนทดสอบซ้ำที่บันทึกไว้ รายการที่ข้าม ถูกบล็อก หรือยังสรุปไม่ได้ยังแสดงอยู่ การไม่พบปัญหาไม่ได้พิสูจน์ว่าปลอดภัย
 
 ## เอกสารต้นฉบับและรายละเอียดทางเทคนิค
 

@@ -1,0 +1,2 @@
+-r runtime.txt
+PyInstaller==6.22.2

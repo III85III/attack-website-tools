@@ -62,13 +62,15 @@ cd attack-website-tools
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements/runtime.txt
+.\.venv\Scripts\python.exe -m src
 ```
 
 </div>
 
 [Coverage](../OBSIDIAN_AUDIT.md) · [Verification](../verification/VERIFICATION_0.20.0.json)
+
+يربط التحليل الصفحات والنماذج والسكربتات ومسارات API بمصدر اكتشافها. يفحص الترويسات والكوكيز وCORS وانعكاس المدخلات ومؤشرات أخطاء قاعدة البيانات أو تقييم القوالب القابلة للتكرار. تتطلب اختبارات الوصول حسابات تجريبية وقواعد معلنة. تفصل التقارير الشدة والثقة وحالة التحقق، وتعرض المكوّن المتأثر والأدلة المنقحة والإصلاح وخطوات إعادة الاختبار المسجلة. تبقى الفحوص المتجاوزة أو المحجوبة أو غير الحاسمة ظاهرة؛ غياب النتائج لا يثبت الأمان.
 
 ## الوثائق الأصلية والتفاصيل التقنية
 

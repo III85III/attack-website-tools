@@ -177,7 +177,7 @@ def test_worker_does_not_block_qt_event_loop(local_http_target, tmp_path, monkey
 
 
 def test_packaged_scanner_verifier_is_loopback_only(tmp_path):
-    from main import _verify_local_scanner
+    from src.__main__ import _verify_local_scanner
 
     output = tmp_path / "verification.json"
     assert _verify_local_scanner("https://example.com/", str(output)) == 1
@@ -185,7 +185,7 @@ def test_packaged_scanner_verifier_is_loopback_only(tmp_path):
 
 
 def test_packaged_scanner_verifier_uses_live_pipeline(local_http_target, tmp_path):
-    from main import _verify_local_scanner
+    from src.__main__ import _verify_local_scanner
 
     output = tmp_path / "verification.json"
     assert _verify_local_scanner(local_http_target, str(output)) == 0
@@ -197,7 +197,7 @@ def test_packaged_scanner_verifier_uses_live_pipeline(local_http_target, tmp_pat
 
 
 def test_local_runtime_verification_artifact_redacts_response_evidence(local_http_target, tmp_path, monkeypatch):
-    from main import _verify_local_scanner
+    from src.__main__ import _verify_local_scanner
     monkeypatch.setattr(_TargetHandler, "version_string", lambda self: "Fixture/1.2 token=RUNTIME_HEADER_SECRET")
     output = tmp_path / "runtime-privacy.json"
     assert _verify_local_scanner(local_http_target, str(output)) == 0

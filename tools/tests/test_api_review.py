@@ -132,7 +132,7 @@ def test_spec_size_duplicates_and_invalid_parameter_rejected(tmp_path):
 
 
 def test_local_api_diagnostic_exports_actual_word(local_target, tmp_path):
-    from main import _verify_local_api
+    from src.__main__ import _verify_local_api
     target, observed = local_target
     source = tmp_path / "api.json"
     source.write_text(json.dumps(specification({"/escaped": specification()["paths"]["/reflect"]})))

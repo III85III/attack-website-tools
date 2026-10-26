@@ -54,11 +54,13 @@ cd attack-website-tools
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements/runtime.txt
+.\.venv\Scripts\python.exe -m src
 ```
 
 [Coverage](../OBSIDIAN_AUDIT.md) · [Verification](../verification/VERIFICATION_0.20.0.json)
+
+विश्लेषण पेज, फ़ॉर्म, स्क्रिप्ट और API रूट को उनके खोज स्रोत से जोड़ता है। हेडर, कुकी, CORS, इनपुट प्रतिबिंब तथा दोहराए जा सकने वाले डेटाबेस त्रुटि या टेम्पलेट गणना संकेत जाँचे जाते हैं। पहुँच जाँच के लिए घोषित परीक्षण खाते और नियम आवश्यक हैं। रिपोर्ट गंभीरता, विश्वास और सत्यापन स्थिति अलग रखती है तथा प्रभावित घटक, संवेदनशील डेटा हटाए हुए प्रमाण, सुधार और दर्ज पुनरुत्पादन चरण दिखाती है। छोड़ी गई, अवरुद्ध और अनिर्णीत जाँच दिखाई देती हैं; कोई परिणाम न मिलना सुरक्षा का प्रमाण नहीं है।
 
 ## मूल दस्तावेज़ और तकनीकी विवरण
 

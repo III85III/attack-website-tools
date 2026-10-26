@@ -54,11 +54,13 @@ cd attack-website-tools
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements/runtime.txt
+.\.venv\Scripts\python.exe -m src
 ```
 
 [Coverage](../OBSIDIAN_AUDIT.md) · [Verification](../verification/VERIFICATION_0.20.0.json)
+
+Analiz; sayfaları, formları, betikleri ve API rotalarını keşif kaynaklarına bağlar. Başlıklar, çerezler, CORS, girdi yansımaları ve tekrarlanabilir veritabanı hataları veya şablon değerlendirme işaretleri kontrol edilir. Erişim testleri açıkça tanımlanmış test hesapları ve kurallar gerektirir. Raporlar önem derecesini, güven düzeyini ve doğrulama durumunu ayırır; etkilenen bileşeni, hassas verileri gizlenmiş kanıtları, düzeltmeleri ve kaydedilmiş yeniden üretim adımlarını içerir. Atlanan, engellenen ve belirsiz kontroller görünür kalır; bulgu olmaması güvenlik kanıtı değildir.
 
 ## Özgün belgeler ve teknik ayrıntılar
 

@@ -23,66 +23,96 @@
 </p>
 <!-- language-selector:end -->
 
-<p align="center"><img src="assets/obsidian-banner.svg" alt="OBSIDIAN — website and API security assessment" width="100%"></p>
+<p align="center"><img src="docs/assets/obsidian-banner.svg" alt="OBSIDIAN website and API security assessment" width="100%"></p>
 
-<p align="center"><a href="https://github.com/III85III/attack-website-tools/releases/tag/v0.20.0"><strong>Download Windows app</strong></a> · <a href="docs/USER_GUIDE_EN.md">User guide</a> · <a href="docs/OBSIDIAN_AUDIT.md">Coverage and limitations</a></p>
+<p align="center"><a href="https://github.com/III85III/attack-website-tools/releases/tag/v0.20.0"><strong>Download for Windows</strong></a> · <a href="docs/USER_GUIDE_EN.md">User guide</a> · <a href="docs/OBSIDIAN_AUDIT.md">Technical coverage</a></p>
 
 # OBSIDIAN
 
-**Web security assessment for websites and APIs you are authorized to test.**
+**A Windows desktop workspace for authorized website and API penetration testing, evidence review and client reports.**
 
-Enter a URL, run the available checks, inspect the evidence and export a report. OBSIDIAN combines application mapping, JavaScript/API discovery, controlled verification and optional test-account access checks in a Windows desktop application.
+OBSIDIAN brings the assessment workflow into one application: enter the website URL, discover reachable application components, run the available security checks, inspect how each result was obtained, and export the selected assessment as a Word, HTML, Markdown or JSON report. It is intended for security researchers, penetration testers and developers assessing websites they own or have permission to test.
+
+The application combines its own bounded web scanner with JavaScript and API discovery, optional browser verification, explicitly configured test-account comparisons and existing external-tool integrations. Its purpose is to make both the findings and the gaps visible: a reported suspicion, an observed configuration and a reproduced vulnerability are different results.
+
+## What the scanner checks
+
+| Area | Actual behavior |
+|---|---|
+| Pages and input points | Crawls a bounded set of same-origin pages and records forms, query parameters, scripts and their relationships. Preserves parameter case and available form defaults. |
+| JavaScript and source maps | Finds literal API routes, exposed structured source maps, credential-shaped values and a limited set of local source-to-sink candidates. Sensitive values are redacted. Static candidates do not establish runtime exploitability. |
+| Reflected XSS | Examines reflected input and its HTML context. Eligible candidates can be checked in an isolated browser using a harmless computed marker; matching execution evidence is required for browser-confirmed results. |
+| Database errors | Compares the original input, a harmless control and repeated quote responses. A new repeatable database signature is reported as potential error disclosure, not automatically as proven SQL injection. |
+| Template evaluation | Uses independent harmless arithmetic challenges to identify reproducible evaluation indicators. It does not infer command execution or full exploit impact from arithmetic alone. |
+| HTTP configuration | Checks security headers, cookie attributes, controlled CORS origin responses, selected exposure paths, redirect behavior and supported header-injection indicators. |
+| API definitions | Discovers or imports supported OpenAPI/Swagger JSON, reviews declarations and performs bounded anonymous GET checks. A declaration/response mismatch alone does not prove private data access. |
+| Access-control expectations | With supplied synthetic accounts and declared resources, compares identity baselines, anonymous access and repeated unexpected access against the assessor's expected rules. Ownership and roles must be supplied explicitly. |
+
+File-boundary testing is available through explicitly declared synthetic canary options in the engine. It requires a provisioned harmless file and expected marker; automatic sensitive-system-file reads are not used. This option currently has no dedicated setup screen.
+
+## From URL to report
+
+1. **Choose the authorized target.** Enter its base URL and confirm the scope. The main screen uses one **Scan Website** action; optional test-account and OpenAPI setup is in its right-click menu.
+2. **Map the application.** The native collector discovers the reachable surface and records which pages, scripts and routes led to each observation. Discovery does not authorize testing another hostname.
+3. **Run applicable checks.** Baselines, control responses, request limits and available verification methods determine what can actually be tested. Missing prerequisites remain visible as skipped, blocked or inconclusive coverage.
+4. **Inspect the evidence.** Filter the results and open a finding to review its endpoint, source, severity, confidence, verification status and remediation. Severity describes potential impact; confidence describes evidence strength.
+5. **Export the assessment.** Select Word, HTML, Markdown or JSON. Reports remain linked to the selected scan and its recorded engine runs, rather than mixing unrelated targets.
+
+Native collection is bounded, uses response-size limits and does not follow redirects automatically. The stop control requests cancellation, and native HTTP 429/503 responses stop further collection. An optional engine already running may finish its bounded operation before cancellation is handled.
+
+## What is in the report
+
+The report starts with the target, assessment timing, execution status and an executive summary based on saved results. Findings include their affected endpoint or component, source tool, severity and its basis, confidence, verification state, sanitized evidence and remediation. Recorded prerequisites, numbered reproduction guidance and demonstrated impact are included when present in the evidence; missing proof is not invented.
+
+Coverage sections distinguish operations that completed from checks that were skipped, blocked, failed or remained inconclusive. Exact duplicate records are consolidated. If no finding is recorded as validated, Word states that explicitly. A report can still contain useful configuration observations or candidates that require review.
+
+**Word, HTML and Markdown** support readable delivery and review; **JSON** retains structured assessment records for further processing. Before sharing any report, check the target, imported evidence and confidentiality requirements. Redaction is applied, but imported descriptions and customer-specific details still deserve human review.
 
 ## Install and run
 
-1. Download **[OBSIDIAN_0.20.0_Windows-x64.zip](https://github.com/III85III/attack-website-tools/releases/download/v0.20.0/OBSIDIAN_0.20.0_Windows-x64.zip)**.
-2. Extract the complete ZIP and open **OBSIDIAN.exe**. Keep `_internal` beside it. Python is not required.
-3. Confirm that you have permission, enter the website URL and select **Scan Website**.
-4. Review the findings, then export **Word, HTML, Markdown or JSON**.
+Use **Windows x64**. The portable build includes Python's runtime, so a separate Python installation is not required.
 
-Right-click the Scan button for optional test-account or OpenAPI setup. Browser confirmation needs a supported signed Edge or Chrome installation; ZAP and Nmap are optional separate tools.
+1. Download **[OBSIDIAN_0.20.0_Windows-x64.zip](https://github.com/III85III/attack-website-tools/releases/download/v0.20.0/OBSIDIAN_0.20.0_Windows-x64.zip)** from the release page.
+2. Extract the **entire ZIP** into a writable folder.
+3. Open **OBSIDIAN.exe** and keep its `_internal` folder beside it.
+4. Read the responsible-use notice, enter the authorized website URL and select **Scan Website**.
+5. Review the results and choose **Export Word report**, HTML, Markdown or JSON.
 
-## What you get
+Download [SHA256SUMS_0.20.0.txt](https://github.com/III85III/attack-website-tools/releases/download/v0.20.0/SHA256SUMS_0.20.0.txt) and compare the ZIP hash before use. The release is **unsigned**; a checksum checks integrity and is not a signing certificate. GitHub's automatic source archive is not the runnable Windows application.
 
-| Capability | What it does |
-|---|---|
-| Application mapping | Connects discovered pages, forms, scripts, API routes and source maps to their discovery evidence. |
-| Controlled verification | Compares baselines and controls; browser XSS becomes validated only with matching execution proof. SQL errors remain error-disclosure candidates. |
-| Explicit access checks | Uses supplied synthetic identities, declared resources and expected permissions instead of guessing ownership. |
-| Useful reports | Keeps severity, confidence, verification status, evidence and coverage limitations separate. |
+## Optional tools and prerequisites
 
-![OBSIDIAN scanner interface](docs/images/scanner.png)
+Browser confirmation needs a supported, signed system installation of **Microsoft Edge or Google Chrome**. **OWASP ZAP** can be used through its configured local API, and **Nmap** through the existing bounded host-check adapter when available. Availability is checked and unavailable engines are reported; an executable name or downloaded archive is not treated as proof that a tool works.
 
-## Evidence and limits
+Supported scanner exports, including Nuclei JSON/JSONL, SARIF and Nmap-compatible XML, can be imported with source provenance. An imported match remains scanner-reported unless independently verified. Importing a report does not execute that scanner or its payloads. No heavyweight scanner is silently installed.
 
-Version 0.20.0 passed **289 regression tests locally and in GitHub Windows CI**. Frozen-runtime tests verified actual request counts, persistence and report generation/reopening. The small labeled corpora do not establish universal accuracy.
+## Coverage, validation and privacy
 
-**Unsigned release candidate.** Potential findings are not confirmed vulnerabilities. Stored/blind XSS, complete authentication lifecycles and business workflows need explicit assessment. Visual Word page rendering remains unverified. Only test within written authorization and the agreed scope.
+Version 0.20.0 passed **289 regression tests locally and in GitHub Windows CI**. Local frozen-runtime checks compared recorded requests with server-observed requests and exercised evidence persistence and report generation/reopening. Small labeled fixture corpora measure only the behaviors they contain; they do not establish complete website detection accuracy.
 
-[Verification record](docs/verification/VERIFICATION_0.20.0.json) · [Detailed audit](docs/OBSIDIAN_AUDIT.md) · [Full 0.20.0 technical README](https://github.com/III85III/attack-website-tools/blob/v0.20.0/README.md)
+This is an **unsigned release candidate**, not a complete automated replacement for a scoped penetration test. Stored/blind XSS, complete authentication lifecycles, application-specific business workflows and exhaustive dynamic JavaScript analysis remain incomplete or require explicit assessment scenarios. Visual Word page rendering remains unverified. [Read the actual verification record](docs/verification/VERIFICATION_0.20.0.json) and [implementation audit](docs/OBSIDIAN_AUDIT.md).
 
-## Run from current source
+Scan history is stored locally. Requests go from your computer to the selected target; passive certificate-transparency discovery also contacts its provider. Optional online voice sends selected text to its provider after confirmation. Protect credentials, sessions, reports and customer data, and keep them out of public issues. Software availability and the confirmation dialog do not grant permission to test a website.
 
-Windows x64 and Python 3.11:
+<details>
+<summary><strong>Run from current source and build</strong></summary>
+
+From the repository root, using Python 3.11 on Windows:
 
 ```powershell
 git clone https://github.com/III85III/attack-website-tools.git
 cd attack-website-tools
 py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements/runtime.txt
+.\.venv\Scripts\python.exe -m src
 ```
 
-Development: install `requirements/dev.txt`, then run `python -m pytest tests -q`. Build: install `requirements/build.txt`, then run `python tools/build_exe.py` and `python tools/package_release.py`. Run these commands from the repository root using the same environment. Published 0.20.0 source archives retain their original layout; the current layout applies to this branch.
+For tests, install `tools/requirements/dev.txt` and run `python -m pytest tools/tests -q` in that environment. For a build, install `tools/requirements/build.txt`, then run `python tools/build_exe.py` and `python tools/package_release.py`. Packaging refuses to overwrite an existing version.
 
-## Project layout
+The root contains only this README, the license and three main folders: `src/` for the application, `docs/` for guides and legal notices, and `tools/` for build helpers, tests and dependencies. [Folder and build guide](docs/REPOSITORY_LAYOUT.md). Historical release archives retain their original filenames, paths and checksums.
 
-`main.py` starts the app. `src/` contains the application, `tests/` its regression tests, `tools/` the build/launcher helpers, `requirements/` development dependencies, and `docs/` the guides and translations. [Build and folder guide](docs/REPOSITORY_LAYOUT.md).
+</details>
 
-## Privacy and support
+[User guide](docs/USER_GUIDE_EN.md) · [Report a bug](https://github.com/III85III/attack-website-tools/issues) · [Security policy](.github/SECURITY.md) · [Contributing](.github/CONTRIBUTING.md)
 
-Protect API keys, cookies, sessions and customer data. The app stores history locally; active scans contact the selected target. CT discovery contacts its provider, and optional online speech sends selected text to its provider after confirmation.
-
-[Report a bug](https://github.com/III85III/attack-website-tools/issues) · [Security policy](.github/SECURITY.md) · [Contributing](.github/CONTRIBUTING.md)
-
-**GPL-3.0-only.** See [LICENSE](LICENSE), [COPYRIGHT](COPYRIGHT) and [third-party notices](THIRD_PARTY_NOTICES.md).
+**GPL-3.0-only.** [License](LICENSE) · [Copyright](docs/legal/COPYRIGHT) · [Third-party notices](docs/legal/THIRD_PARTY_NOTICES.md).

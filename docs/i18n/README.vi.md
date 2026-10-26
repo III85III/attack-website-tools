@@ -54,11 +54,13 @@ cd attack-website-tools
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements/runtime.txt
+.\.venv\Scripts\python.exe -m src
 ```
 
 [Coverage](../OBSIDIAN_AUDIT.md) · [Verification](../verification/VERIFICATION_0.20.0.json)
+
+Phân tích liên kết trang, biểu mẫu, tập lệnh và đường dẫn API với nguồn khám phá. Các kiểm tra bao gồm header, cookie, CORS, phản chiếu đầu vào và dấu hiệu lỗi cơ sở dữ liệu hoặc tính toán mẫu có thể lặp lại. Kiểm tra truy cập cần tài khoản thử nghiệm và quy tắc khai báo rõ ràng. Báo cáo tách mức độ nghiêm trọng, độ tin cậy và trạng thái xác minh, kèm thành phần bị ảnh hưởng, bằng chứng đã che dữ liệu nhạy cảm, cách sửa và bước tái hiện đã ghi nhận. Kiểm tra bị bỏ qua, chặn hoặc chưa rõ vẫn hiển thị; không có phát hiện không chứng minh an toàn.
 
 ## Tài liệu gốc và chi tiết kỹ thuật
 

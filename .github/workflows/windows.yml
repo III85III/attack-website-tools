@@ -25,9 +25,9 @@ jobs:
           python-version: "3.11"
           cache: pip
           cache-dependency-path: |
-            requirements.txt
-            requirements/dev.txt
+            tools/requirements/runtime.txt
+            tools/requirements/dev.txt
       - name: Install pinned dependencies
-        run: python -m pip install --disable-pip-version-check -r requirements/dev.txt
+        run: python -m pip install --disable-pip-version-check -r tools/requirements/dev.txt
       - name: Run checks against disposable loopback fixtures
-        run: python -m pytest tests -q --junitxml=pytest-results.xml
+        run: python -m pytest tools/tests -q --junitxml=pytest-results.xml

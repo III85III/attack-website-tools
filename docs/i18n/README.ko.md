@@ -54,11 +54,13 @@ cd attack-website-tools
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements/runtime.txt
+.\.venv\Scripts\python.exe -m src
 ```
 
 [Coverage](../OBSIDIAN_AUDIT.md) · [Verification](../verification/VERIFICATION_0.20.0.json)
+
+분석은 페이지, 폼, 스크립트, API 경로를 발견 출처와 연결합니다. 헤더, 쿠키, CORS, 입력 반사, 재현 가능한 데이터베이스 오류나 템플릿 계산 징후를 검사합니다. 접근 검사는 명시된 테스트 계정과 규칙이 필요합니다. 보고서는 심각도, 신뢰도, 검증 상태를 구분하고 영향받는 구성 요소, 민감 정보를 가린 증거, 수정 안내와 기록된 재현 단계를 제공합니다. 건너뛰거나 차단되거나 결론이 불명확한 검사도 표시하며, 탐지 결과가 없다고 안전을 입증한 것은 아닙니다.
 
 ## 원본 문서 및 기술 정보
 

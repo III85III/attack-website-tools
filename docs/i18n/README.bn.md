@@ -54,11 +54,13 @@ cd attack-website-tools
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements/runtime.txt
+.\.venv\Scripts\python.exe -m src
 ```
 
 [Coverage](../OBSIDIAN_AUDIT.md) · [Verification](../verification/VERIFICATION_0.20.0.json)
+
+বিশ্লেষণ পৃষ্ঠা, ফর্ম, স্ক্রিপ্ট ও API রুটকে আবিষ্কারের উৎসের সঙ্গে যুক্ত করে। হেডার, কুকি, CORS, ইনপুট প্রতিফলন এবং পুনরাবৃত্তিযোগ্য ডেটাবেস ত্রুটি বা টেমপ্লেট গণনার লক্ষণ পরীক্ষা করা হয়। অ্যাক্সেস পরীক্ষার জন্য ঘোষিত পরীক্ষামূলক অ্যাকাউন্ট ও নিয়ম দরকার। প্রতিবেদনে গুরুত্ব, আস্থা ও যাচাই অবস্থা আলাদা থাকে; আক্রান্ত অংশ, সংবেদনশীল তথ্য সরানো প্রমাণ, সংশোধন এবং নথিভুক্ত পুনরুৎপাদন ধাপ দেখানো হয়। বাদ পড়া, অবরুদ্ধ বা অনির্ণীত পরীক্ষাও দেখা যায়; ফলাফল না পাওয়া নিরাপত্তার প্রমাণ নয়।
 
 ## মূল নথি ও প্রযুক্তিগত বিবরণ
 

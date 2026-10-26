@@ -22,20 +22,20 @@ def build() -> Path | None:
         "--onedir",
         "--noupx",
         "--windowed",
-        f"--icon={BASE_DIR / 'assets' / 'obsidian.ico'}",
+        f"--icon={BASE_DIR / 'docs' / 'assets' / 'obsidian.ico'}",
         f"--paths={BASE_DIR}",
         f"--runtime-hook={BASE_DIR / 'tools' / 'pyi_rth_qt6_dll.py'}",
         f"--add-data={BASE_DIR / 'docs' / 'USER_GUIDE_FA.md'};docs",
         f"--add-data={BASE_DIR / 'docs' / 'USER_GUIDE_EN.md'};docs",
         f"--add-data={BASE_DIR / 'docs' / 'SECURITY_MODEL.md'};docs",
-        f"--add-data={BASE_DIR / 'THIRD_PARTY_NOTICES.md'};.",
+        f"--add-data={BASE_DIR / 'docs' / 'legal' / 'THIRD_PARTY_NOTICES.md'};.",
         f"--add-data={BASE_DIR / 'LICENSE'};.",
         "--hidden-import=PyQt6",
         "--hidden-import=docx",
         "--hidden-import=psutil",
         "--hidden-import=defusedxml",
         "--hidden-import=edge_tts",
-        str(BASE_DIR / "main.py"),
+        str(BASE_DIR / "src" / "__main__.py"),
     ]
     result = subprocess.run(command, cwd=BASE_DIR, check=False)
     if result.returncode != 0:
