@@ -12,9 +12,11 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 from packaging.requirements import Requirement
 
+import sys
+BASE = Path(__file__).resolve().parents[1]
+if str(BASE) not in sys.path:
+    sys.path.insert(0, str(BASE))
 from src.core.config import APP_VERSION
-
-BASE = Path(__file__).resolve().parent
 
 
 def sha256(path: Path) -> str:
@@ -70,16 +72,14 @@ def package() -> Path:
         raise FileExistsError("This version already has release artifacts; choose a new version before packaging.")
     build = BASE / "dist" / "OBSIDIAN"
     if not (build / "OBSIDIAN.exe").is_file():
-        raise FileNotFoundError("Run python build_exe.py before packaging.")
+        raise FileNotFoundError("Run python tools/build_exe.py before packaging.")
 
     with ZipFile(source_zip, "w", ZIP_DEFLATED) as bundle:
-        for folder, suffixes in (("src", {".py"}), ("tests", {".py"}), ("docs", {".md", ".json"}), ("assets", {".ico", ".png"})):
+        for folder, suffixes in (("src", {".py"}), ("tests", {".py"}), ("docs", {".md", ".json", ".svg"}), ("assets", {".ico", ".png", ".svg"}), ("tools", {".py", ".cs"}), ("requirements", {".txt"}), (".github", {".md", ".yml"})):
             for path in sorted((BASE / folder).rglob("*")):
                 if path.is_file() and path.suffix in suffixes:
                     bundle.write(path, path.relative_to(BASE).as_posix())
-        for filename in ("main.py", "build_exe.py", "package_release.py", "pyi_rth_qt6_dll.py",
-                         "StartSentinel.cs",
-                         "requirements.txt", "requirements-dev.txt", "requirements-build.txt",
+        for filename in ("main.py", "requirements.txt",
                          "README.md", "LICENSE", "COPYRIGHT", "THIRD_PARTY_NOTICES.md"):
             bundle.write(BASE / filename, filename)
 
@@ -89,6 +89,12 @@ def package() -> Path:
     (destination / "docs").mkdir()
     for filename in ("USER_GUIDE_EN.md", "SECURITY_MODEL.md", "RESPONSIBLE_USE.md", "RELEASE_CHECKLIST.md", "DEPTH_COVERAGE_AUDIT.md", "OBSIDIAN_AUDIT.md", f"RELEASE_NOTES_{APP_VERSION}.md"):
         shutil.copy2(BASE / "docs" / filename, destination / "docs" / filename)
+    for folder in ("i18n", "images"):
+        shutil.copytree(BASE / "docs" / folder, destination / "docs" / folder)
+    shutil.copytree(BASE / "assets", destination / "assets")
+    (destination / ".github").mkdir()
+    for filename in ("CONTRIBUTING.md", "SECURITY.md"):
+        shutil.copy2(BASE / ".github" / filename, destination / ".github" / filename)
     (destination / "source").mkdir()
     shutil.copy2(source_zip, destination / "source" / source_zip.name)
     components = collect_licenses(destination / "THIRD_PARTY_LICENSES")

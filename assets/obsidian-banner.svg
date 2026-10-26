@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="340" viewBox="0 0 1200 340" role="img" aria-label="OBSIDIAN web security assessment by III85III">
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#08101c"/><stop offset="1" stop-color="#111c30"/></linearGradient><linearGradient id="edge"><stop stop-color="#60eee2"/><stop offset="1" stop-color="#6285ff"/></linearGradient><radialGradient id="glow"><stop stop-color="#20bdd0" stop-opacity=".2"/><stop offset="1" stop-color="#20bdd0" stop-opacity="0"/></radialGradient><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#92c3df" stroke-opacity=".045"/></pattern></defs>
+<rect width="1200" height="340" rx="24" fill="url(#bg)"/><rect width="1200" height="340" rx="24" fill="url(#grid)"/>
+<circle cx="970" cy="170" r="160" fill="url(#glow)"/><circle cx="970" cy="170" r="112" fill="none" stroke="#29425e"/><circle cx="970" cy="170" r="96" fill="none" stroke="#28465b" stroke-dasharray="3 12"/>
+<path d="M900 170 C900 101 970 122 970 170 C970 218 1040 239 1040 170 C1040 101 970 122 970 170 C970 218 900 239 900 170" fill="none" stroke="url(#edge)" stroke-width="8"/>
+<text x="64" y="85" fill="#7adbd8" font-family="Arial,sans-serif" font-size="14" letter-spacing="4">WEBSITE AND API ASSESSMENT</text>
+<text x="60" y="177" fill="#f1f6fc" font-family="Arial,sans-serif" font-size="78" font-weight="700" letter-spacing="10">OBSIDIAN</text>
+<text x="65" y="226" fill="#9cb3c9" font-family="Arial,sans-serif" font-size="22">Security testing with evidence you can review.</text>
+<path d="M65 263H610" stroke="#2b4057"/><text x="65" y="295" fill="#718ba5" font-family="Arial,sans-serif" font-size="13" letter-spacing="2">WINDOWS DESKTOP</text><text x="500" y="295" fill="#9bb5cf" font-family="Arial,sans-serif" font-size="13" letter-spacing="2">III85III</text></svg>

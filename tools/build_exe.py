@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parents[1]
 
 
 def build() -> Path | None:
@@ -24,7 +24,7 @@ def build() -> Path | None:
         "--windowed",
         f"--icon={BASE_DIR / 'assets' / 'obsidian.ico'}",
         f"--paths={BASE_DIR}",
-        f"--runtime-hook={BASE_DIR / 'pyi_rth_qt6_dll.py'}",
+        f"--runtime-hook={BASE_DIR / 'tools' / 'pyi_rth_qt6_dll.py'}",
         f"--add-data={BASE_DIR / 'docs' / 'USER_GUIDE_FA.md'};docs",
         f"--add-data={BASE_DIR / 'docs' / 'USER_GUIDE_EN.md'};docs",
         f"--add-data={BASE_DIR / 'docs' / 'SECURITY_MODEL.md'};docs",

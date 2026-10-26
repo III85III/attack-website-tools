@@ -1,6 +1,6 @@
 # Security policy
 
-The currently maintained release candidate is **0.19.1**. Releases are unsigned; verify the published SHA-256 checksums.
+The currently maintained release candidate is **0.20.0**. Releases are unsigned; verify the published SHA-256 checksums.
 
 ## Report a vulnerability in OBSIDIAN
 
@@ -11,5 +11,5 @@ Do not post credentials, customer data, private target reports or live session t
 Reports about third-party websites belong to the target owner's authorized disclosure process.
 OBSIDIAN's responsible-use notice does not grant target authorization.
 
-See the [Security Model](docs/SECURITY_MODEL.md) for limits and evidence handling.
+See the [Security Model](../docs/SECURITY_MODEL.md) for limits and evidence handling.
 A completed scan or zero findings is not proof of security.

@@ -7,7 +7,7 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("III85III OBSIDIAN")]
 [assembly: AssemblyDescription("Launch the verified portable OBSIDIAN package")]
 [assembly: AssemblyVersion("0.20.0.0")]
-internal static class StartSentinel
+internal static class StartObsidian
 {
     [STAThread]
     private static void Main()
