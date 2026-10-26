@@ -64,4 +64,4 @@ def validate_local_host(host: str) -> Tuple[bool, str]:
         return False, "Hostname could not be resolved to a local address."
     if resolved and resolved.issubset(machine_addresses):
         return True, "Hostname resolves only to this machine."
-    return False, "Target resolves outside this machine; Qolam Sentinel is configured for local-only scans."
+    return False, "Target resolves outside this machine; OBSIDIAN is configured for local-only scans."

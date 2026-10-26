@@ -1,5 +1,5 @@
 """
-III85III QOLAM SENTINEL — Nmap Adapter
+III85III OBSIDIAN — Nmap Adapter
 Real network, host, and port discovery with defusedxml parsing and strict scope bounds.
 """
 from __future__ import annotations

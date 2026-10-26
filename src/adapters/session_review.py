@@ -117,7 +117,7 @@ class SessionReviewAdapter:
                     continue
                 session = requests.Session()
                 session.trust_env = False
-                session.headers.update({"User-Agent": "QolamSentinel/SessionReview", "Accept": "text/html,application/json"})
+                session.headers.update({"User-Agent": "OBSIDIAN/SessionReview", "Accept": "text/html,application/json"})
                 if profile:
                     header = "Cookie" if profile["mode"] == "cookie" else "Authorization"
                     session.headers[header] = profile["secret"] if header == "Cookie" else "Bearer " + profile["secret"]

@@ -1,5 +1,5 @@
 """
-III85III QOLAM SENTINEL — Base Tool Adapter
+III85III OBSIDIAN — Base Tool Adapter
 Abstract base class for all external tool integrations.
 """
 from __future__ import annotations

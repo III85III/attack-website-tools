@@ -1,0 +1,185 @@
+{
+  "product": "OBSIDIAN",
+  "version": "0.20.0",
+  "release_stage": "unsigned release candidate",
+  "baseline": {
+    "passed": 270,
+    "seconds": 133.52
+  },
+  "regression": {
+    "tests": 289,
+    "failures": 0,
+    "errors": 0,
+    "seconds": 147.004
+  },
+  "additional_targeted_guards": {
+    "passed": 28
+  },
+  "database_and_migration": {
+    "passed": 21
+  },
+  "labeled_sql_error_and_file_canary_corpus": {
+    "cases": 9,
+    "true_positives": 2,
+    "true_negatives": 7,
+    "false_positives": 0,
+    "false_negatives": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "limitation": "Synthetic SQL-error disclosure and declared canary cases only; not general exploit detection accuracy."
+  },
+  "runtime": {
+    "version": "0.20.0",
+    "native_requests": 31,
+    "server_observed_requests": 31,
+    "controlled_sql_error_verified": true,
+    "classification": "POTENTIAL CWE-209; SQL injection not established",
+    "persistence_verified": true,
+    "json_export_verified": true,
+    "provenance_count_matches": true
+  },
+  "assets_and_word_runtime": {
+    "version": "0.20.0",
+    "source_suite": "289 passed",
+    "loopback_only": true,
+    "website_recorded_equals_observed": 34,
+    "application_map_verified": true,
+    "structured_source_map_verified": true,
+    "token_redaction_verified": true,
+    "api_arithmetic_candidate_verified": true,
+    "word_generated_and_reopened": true,
+    "word_visual_review": false,
+    "json_and_database_verified": true
+  },
+  "startup": {
+    "application_version": "0.20.0",
+    "window_title": "OBSIDIAN 0.20.0 | Web Security Assessment",
+    "scan_button": "Scan Website",
+    "target_input_empty": true,
+    "history_isolated": true,
+    "screenshot_saved": true
+  },
+  "report_checks": {
+    "word_reopened": true,
+    "coverage_in_word": true,
+    "numbered_reproduction_present": true,
+    "unconfirmed_statement_present": true,
+    "output_names": [
+      "OBSIDIAN_Report_20261026_160424_897097.docx",
+      "OBSIDIAN_Report_20261026_160424_930709.html",
+      "OBSIDIAN_Report_20261026_160424_941119.md",
+      "OBSIDIAN_Export_20261026_160424_944047.json"
+    ],
+    "visual_render_verified": false
+  },
+  "word_visual_render_verified": false,
+  "word_visual_render_blocker": "LibreOffice soffice.exe was not found on PATH.",
+  "executable_sha256": "486a195c6c2f5db9f77bb76c16580513c4f955ba1b54067fe86ad25be87c4cf7",
+  "tool_health": [
+    {
+      "name": "Nmap",
+      "status": "INSTALLED_AND_VERIFIED",
+      "version": "7.99"
+    },
+    {
+      "name": "OWASP ZAP",
+      "status": "MISSING",
+      "version": null
+    },
+    {
+      "name": "Browser XSS verification",
+      "status": "VERSION_CHECK_FAILED",
+      "version": "Runtime checked on use"
+    },
+    {
+      "name": "External Report Import",
+      "status": "INSTALLED_AND_VERIFIED",
+      "version": "SARIF 2.1 / Nuclei JSONL / Nmap XML / Hydra JSON / common findings JSON"
+    },
+    {
+      "name": "Nuclei",
+      "status": "MISSING",
+      "version": null
+    },
+    {
+      "name": "Nikto",
+      "status": "MISSING",
+      "version": null
+    },
+    {
+      "name": "SQLmap",
+      "status": "MISSING",
+      "version": null
+    },
+    {
+      "name": "FFUF",
+      "status": "MISSING",
+      "version": null
+    },
+    {
+      "name": "Gobuster",
+      "status": "MISSING",
+      "version": null
+    },
+    {
+      "name": "WhatWeb",
+      "status": "MISSING",
+      "version": null
+    },
+    {
+      "name": "WPScan",
+      "status": "MISSING",
+      "version": null
+    },
+    {
+      "name": "HTTPX",
+      "status": "VERSION_CHECK_FAILED",
+      "version": null
+    },
+    {
+      "name": "Subfinder",
+      "status": "MISSING",
+      "version": null
+    },
+    {
+      "name": "Amass",
+      "status": "MISSING",
+      "version": null
+    },
+    {
+      "name": "testssl.sh",
+      "status": "MISSING",
+      "version": null
+    },
+    {
+      "name": "Shannon",
+      "status": "MISSING",
+      "version": null
+    },
+    {
+      "name": "Sn1per",
+      "status": "MISSING",
+      "version": null
+    },
+    {
+      "name": "Strix",
+      "status": "MISSING",
+      "version": null
+    },
+    {
+      "name": "THC Hydra",
+      "status": "MISSING",
+      "version": null
+    }
+  ],
+  "public_targets_scanned": false,
+  "new_external_tools_installed": false,
+  "legacy_state_migration": "Existing portable/per-user database reused in place; unchanged database filename and log schema.",
+  "limitations": [
+    "No universal vulnerability coverage or independent enterprise security audit.",
+    "Optional scanner cancellation is checked between engines, not while an existing external process runs.",
+    "File canary configuration is an engine option; no setup screen.",
+    "Browser runtime/version readiness not confirmed by the health inventory.",
+    "No live ZAP integration test: local ZAP unavailable."
+  ]
+}

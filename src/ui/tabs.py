@@ -1,5 +1,5 @@
 """
-III85III QOLAM SENTINEL — UI Tab Widgets
+III85III OBSIDIAN — UI Tab Widgets
 Implementation of the 8 dedicated functional tabs for the unified desktop platform.
 """
 from __future__ import annotations
@@ -96,14 +96,14 @@ class WebAuditWorker(QThread):
     def run(self):
         started = time.monotonic()
         scan_run = ScanRun(
-            tool_name="Sentinel Web Scanner",
+            tool_name="OBSIDIAN Web Scanner",
             target=self.target_url,
             raw_command="",
         )
         scan_run.execution_log.append({
             "timestamp": scan_run.start_time,
             "operation": "Scan job started",
-            "scanner": "Sentinel Web Scanner",
+            "scanner": "OBSIDIAN Web Scanner",
             "state": "RUNNING",
         })
         findings: List[Finding] = []
@@ -123,12 +123,13 @@ class WebAuditWorker(QThread):
                 options={
                     "deep_scan": self.deep_scan,
                     "progress_callback": lambda msg: self.progress_signal.emit(msg),
+                    "cancel_check": self.isInterruptionRequested,
                 },
             )
             for f in findings:
                 db.save_finding(f)
             if scan_run.status != "COMPLETED":
-                scan_run.tool_name = "Sentinel DAST"
+                scan_run.tool_name = "OBSIDIAN DAST"
                 scan_run.end_time = scan_run.end_time or datetime.now(timezone.utc).isoformat()
                 scan_run.duration_ms = int((time.monotonic() - started) * 1000)
                 scan_run.execution_log.append({
@@ -146,7 +147,7 @@ class WebAuditWorker(QThread):
                 self.finished_signal.emit(scan_run, findings)
                 return
 
-            modules = ["Sentinel DAST"]
+            modules = ["OBSIDIAN DAST"]
             if not self.api_plan:
                 try:
                     self.progress_signal.emit("Auto-probing for exposed OpenAPI/Swagger definitions…")
@@ -163,6 +164,8 @@ class WebAuditWorker(QThread):
                 except Exception:
                     scan_run.execution_log.append({"operation": "Automatic API discovery", "state": "INCONCLUSIVE", "error_type": "DiscoveryFailed"})
             optional_failures: List[str] = []
+            if self.isInterruptionRequested():
+                raise InterruptedError("Assessment stop requested")
             if self.api_plan:
                 api_adapter = APIReviewAdapter()
                 api_run = ScanRun(tool_name=api_adapter.name, target=self.target_url, parent_scan_id=scan_run.id, raw_command="")
@@ -176,6 +179,8 @@ class WebAuditWorker(QThread):
                 else:
                     optional_failures.append("OpenAPI review")
             session_summary = "Session/access review not configured; authenticated coverage was not checked."
+            if self.isInterruptionRequested():
+                raise InterruptedError("Assessment stop requested")
             if self.session_plan:
                 self.progress_signal.emit("Checking supplied read-only sessions and access expectations…")
                 review = SessionReviewAdapter()
@@ -194,6 +199,8 @@ class WebAuditWorker(QThread):
 
             # Use ZAP automatically when its local API is available. The one
             # confirmation dialog already warns that active probes may run.
+            if self.isInterruptionRequested():
+                raise InterruptedError("Assessment stop requested")
             zap_adapter = ZapAdapter()
             zap_health = zap_adapter.detect()
             if zap_health.installed:
@@ -228,7 +235,7 @@ class WebAuditWorker(QThread):
                     optional_failures.append("OWASP ZAP")
                     self.progress_signal.emit(f"ZAP was available but did not complete: {zap_run.error_message or zap_run.status}")
             else:
-                self.progress_signal.emit("ZAP is not installed or running; Sentinel built-in scan completed.")
+                self.progress_signal.emit("ZAP is not installed or running; OBSIDIAN built-in scan completed.")
                 scan_run.execution_log.append({
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "scanner": "OWASP ZAP",
@@ -238,6 +245,8 @@ class WebAuditWorker(QThread):
                     "reason": zap_health.status_message,
                 })
 
+            if self.isInterruptionRequested():
+                raise InterruptedError("Assessment stop requested")
             nmap_adapter = NmapAdapter()
             nmap_health = nmap_adapter.detect()
             if nmap_health.installed:
@@ -289,6 +298,8 @@ class WebAuditWorker(QThread):
                     "reason": nmap_health.status_message,
                 })
 
+            if self.isInterruptionRequested():
+                raise InterruptedError("Assessment stop requested")
             scan_run.status = "PARTIAL" if optional_failures else "COMPLETED"
             scan_run.tool_name = " + ".join(modules)
             scan_run.findings_count = len(findings)
@@ -298,7 +309,7 @@ class WebAuditWorker(QThread):
                 name for name, health in (("OWASP ZAP", zap_health), ("Nmap", nmap_health))
                 if not health.installed
             ]
-            reason_parts = ["Sentinel live HTTP assessment completed", session_summary,
+            reason_parts = ["OBSIDIAN live HTTP assessment completed", session_summary,
                             "State-changing business workflows and full authenticated penetration testing still require assessor review."]
             if not_configured:
                 reason_parts.append("not configured: " + ", ".join(not_configured))
@@ -325,10 +336,10 @@ class WebAuditWorker(QThread):
 
             self.finished_signal.emit(scan_run, findings)
         except Exception as exc:
-            scan_run.status = "PARTIAL" if scan_run.response_status is not None else "FAILED"
+            scan_run.status = "CANCELLED" if isinstance(exc, InterruptedError) else "PARTIAL" if scan_run.response_status is not None else "FAILED"
             scan_run.findings_count = len(findings)
             scan_run.error_message = f"{type(exc).__name__}: {str(exc)[:800]}"
-            scan_run.completion_reason = (
+            scan_run.completion_reason = "Cancelled by the assessor; remaining engines were not started." if isinstance(exc, InterruptedError) else (
                 "Live HTTP assessment completed, but a later pipeline stage failed."
                 if scan_run.response_status is not None
                 else "The scan pipeline raised an exception before verified HTTP completion."
@@ -537,7 +548,7 @@ class WebSecurityTab(QWidget):
         title_stack = QVBoxLayout()
         title = QLabel("Web Security Scanner")
         title.setStyleSheet("font-size:23px; font-weight:800; color:#e7f4ff;")
-        subtitle = QLabel("Enter an authorized target. Sentinel collects evidence and creates a structured report.")
+        subtitle = QLabel("Enter an authorized target. OBSIDIAN collects evidence and creates a structured report.")
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet("font-size:12px; color:#8ea9c0;")
         title_stack.addWidget(title)
@@ -714,6 +725,10 @@ class WebSecurityTab(QWidget):
 
     def start_scan(self):
         if getattr(self, "web_worker", None) and self.web_worker.isRunning():
+            self.web_worker.requestInterruption()
+            self.scan_btn.setText("Stopping…")
+            self.scan_btn.setEnabled(False)
+            self.scan_status.setText("Stop requested. Waiting for the current bounded operation to finish.")
             return
         if self.report_actions.worker and self.report_actions.worker.isRunning():
             return
@@ -743,7 +758,7 @@ class WebSecurityTab(QWidget):
             self,
             "Scan Authorization",
             f"Scan only websites you own or have written permission to assess:\n\n{target}\n\n"
-            "Sentinel will run a deep web assessment. If local OWASP ZAP or Nmap is installed, those scanners will also run against this host. Active probes may affect the service. "
+            "OBSIDIAN will run a deep web assessment. If local OWASP ZAP or Nmap is installed, those scanners will also run against this host. Active probes may affect the service. "
             + (f"Supplied sessions will also be used on the canary and {len(self.session_plan['cases'])} declared read-only path(s); the session values are not passed to ZAP or Nmap. " if self.session_plan else "")
             + ("The imported API definition will also be reviewed with up to 20 anonymous GET operations and bounded query probes. Verify these GET routes are read-only. " if self.api_plan else "")
             + "Continue?",
@@ -753,7 +768,7 @@ class WebSecurityTab(QWidget):
         if approval != QMessageBox.StandardButton.Yes:
             return
 
-        self.scan_btn.setEnabled(False)
+        self.scan_btn.setText("Stop Scan")
         self.session_btn.setEnabled(False)
         self.progress.setVisible(True)
         self.findings_table.setRowCount(0)
@@ -784,12 +799,15 @@ class WebSecurityTab(QWidget):
         self.scan_status.setToolTip(message)
 
     def _on_scan_finished(self, scan_run: ScanRun, findings: List[Finding]):
+        self.scan_btn.setText("Scan Website")
         self.scan_btn.setEnabled(True)
         self.session_btn.setEnabled(True)
         self.progress.setVisible(False)
         self.scan_visual.set_state(scan_run.status)
         self.report_actions.set_assessment(scan_run)
-        self.coverage_note.setText(scan_run.completion_reason or scan_run.error_message or "")
+        ledger = next((entry for entry in scan_run.execution_log if entry.get("operation") == "Verification coverage"), {})
+        summary = "; ".join(f"{state.lower()}: {count}" for state, count in ledger.get("counts", {}).items() if count)
+        self.coverage_note.setText((scan_run.completion_reason or scan_run.error_message or "") + (" Coverage: " + summary if summary else ""))
         self.coverage_note.setVisible(bool(self.coverage_note.text()))
         severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
         findings = sorted(findings, key=lambda f: (severity_order.get(f.severity.value, 5), f.title.casefold()))
@@ -925,6 +943,8 @@ class WebSecurityTab(QWidget):
         dialog.exec()
 
     def _on_scan_error(self, err: str):
+        self.scan_btn.setText("Scan Website")
+        self.scan_btn.setText("Scan Website")
         self.scan_btn.setEnabled(True)
         self.session_btn.setEnabled(True)
         self.progress.setVisible(False)

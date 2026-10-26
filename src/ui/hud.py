@@ -1,4 +1,4 @@
-"""Lightweight animated Sentinel scanner illustration drawn with QPainter."""
+"""Lightweight animated OBSIDIAN scanner illustration drawn with QPainter."""
 from __future__ import annotations
 
 import math
@@ -69,7 +69,7 @@ class SentinelHud(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self._angle = 0
         self._active = False
-        self._headline = "SENTINEL READY"
+        self._headline = "OBSIDIAN READY"
         self._detail = "Ready to scan"
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -77,7 +77,7 @@ class SentinelHud(QWidget):
 
     def set_scanning(self, active: bool, detail: str = "") -> None:
         self._active = active
-        self._headline = "LIVE SCAN" if active else "SENTINEL READY"
+        self._headline = "LIVE SCAN" if active else "OBSIDIAN READY"
         self._detail = detail or ("Scanning target" if active else "Ready to scan")
         self._timer.setInterval(38 if active else 110)
         self.update()
@@ -145,7 +145,7 @@ class SentinelHud(QWidget):
             painter.setBrush(color)
             painter.drawEllipse(point, 3.1 if self._active else 2.2, 3.1 if self._active else 2.2)
 
-        # Central Sentinel mark.
+        # Central OBSIDIAN mark.
         core_r = radius * .23
         points = [QPointF(center.x() + math.cos(math.radians(60*i - 30)) * core_r,
                           center.y() + math.sin(math.radians(60*i - 30)) * core_r) for i in range(6)]
@@ -164,3 +164,8 @@ class SentinelHud(QWidget):
         detail_rect = QRectF(rect.left() + 8, rect.bottom() - 27, rect.width() - 16, 17)
         painter.drawText(detail_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, self._detail)
         painter.end()
+
+
+# Compatibility aliases for existing UI extensions.
+create_obsidian_icon = create_sentinel_icon
+ObsidianHud = SentinelHud

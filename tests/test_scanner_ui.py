@@ -19,11 +19,11 @@ def test_scanner_summary_and_async_report_use_same_assessment(tmp_path, monkeypa
     monkeypatch.setattr(DatabaseManager, "get_instance", classmethod(lambda cls, *_a, **_kw: db))
     monkeypatch.setattr("src.ui.report_actions.export_assessment", lambda database, scan_id, fmt, **kwargs:
                         export_assessment(database, scan_id, fmt, tmp_path / "reports", **kwargs))
-    scan = ScanRun(tool_name="Sentinel DAST", target="https://first.test", raw_command="",
+    scan = ScanRun(tool_name="OBSIDIAN DAST", target="https://first.test", raw_command="",
                    status="COMPLETED", request_count=5, response_status=200, findings_count=1)
     db.save_scan(scan)
     item = Finding(scan_id=scan.id, title="Controlled high-severity finding", description="UI regression fixture",
-                   source_tool="Sentinel", target=scan.target, severity=FindingSeverity.HIGH,
+                   source_tool="OBSIDIAN", target=scan.target, severity=FindingSeverity.HIGH,
                    severity_source="Fixture", confidence=FindingConfidence.HIGH,
                    confidence_justification="Fixture", evidence_raw="Fixture")
     db.save_finding(item)

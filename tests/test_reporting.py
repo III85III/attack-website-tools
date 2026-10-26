@@ -99,7 +99,7 @@ def test_json_export_generation():
 
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-            assert data["platform"] == "III85III QOLAM SENTINEL"
+            assert data["platform"] == "III85III OBSIDIAN"
             assert data["total_findings"] == 1
             assert len(data["findings"]) == 1
 
@@ -107,11 +107,11 @@ def test_json_export_generation():
 def test_markdown_export_generation():
     with tempfile.TemporaryDirectory() as tmpdir:
         exporter = MarkdownExporter(output_dir=Path(tmpdir))
-        scan = ScanRun(tool_name="Sentinel Web", target="https://example.com", raw_command="")
+        scan = ScanRun(tool_name="OBSIDIAN Web", target="https://example.com", raw_command="")
         finding = Finding(
             title="Reflected XSS Detected",
             description="XSS indicator found in parameter.",
-            source_tool="Sentinel Web",
+            source_tool="OBSIDIAN Web",
             severity_source="Synthetic fixture",
             confidence_justification="Synthetic fixture",
             target="https://example.com/search?q=test",
@@ -131,11 +131,11 @@ def test_markdown_export_generation():
 def test_html_export_generation():
     with tempfile.TemporaryDirectory() as tmpdir:
         exporter = HTMLExporter(output_dir=Path(tmpdir))
-        scan = ScanRun(tool_name="Sentinel Web", target="https://example.com", raw_command="")
+        scan = ScanRun(tool_name="OBSIDIAN Web", target="https://example.com", raw_command="")
         finding = Finding(
             title="Insecure Direct Object Reference",
             description="Parameter ID exposed.",
-            source_tool="Sentinel Web",
+            source_tool="OBSIDIAN Web",
             severity_source="Synthetic fixture",
             confidence_justification="Synthetic fixture",
             target="https://example.com/api/users",

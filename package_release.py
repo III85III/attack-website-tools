@@ -62,18 +62,18 @@ def collect_licenses(destination: Path) -> list:
 def package() -> Path:
     release = BASE / "release"
     release.mkdir(exist_ok=True)
-    name = f"Qolam_Hacker_{APP_VERSION}_Windows-x64"
+    name = f"OBSIDIAN_{APP_VERSION}_Windows-x64"
     destination = release / name
-    source_zip = release / f"Qolam_Hacker_{APP_VERSION}_Source.zip"
+    source_zip = release / f"OBSIDIAN_{APP_VERSION}_Source.zip"
     archive = release / f"{name}.zip"
     if any(path.exists() for path in (destination, source_zip, archive)):
         raise FileExistsError("This version already has release artifacts; choose a new version before packaging.")
-    build = BASE / "dist" / "Qolam_Hacker"
-    if not (build / "Qolam_Hacker.exe").is_file():
+    build = BASE / "dist" / "OBSIDIAN"
+    if not (build / "OBSIDIAN.exe").is_file():
         raise FileNotFoundError("Run python build_exe.py before packaging.")
 
     with ZipFile(source_zip, "w", ZIP_DEFLATED) as bundle:
-        for folder, suffixes in (("src", {".py"}), ("tests", {".py"}), ("docs", {".md"}), ("assets", {".ico", ".png"})):
+        for folder, suffixes in (("src", {".py"}), ("tests", {".py"}), ("docs", {".md", ".json"}), ("assets", {".ico", ".png"})):
             for path in sorted((BASE / folder).rglob("*")):
                 if path.is_file() and path.suffix in suffixes:
                     bundle.write(path, path.relative_to(BASE).as_posix())
@@ -87,19 +87,19 @@ def package() -> Path:
     for filename in ("README.md", "LICENSE", "COPYRIGHT", "THIRD_PARTY_NOTICES.md"):
         shutil.copy2(BASE / filename, destination / filename)
     (destination / "docs").mkdir()
-    for filename in ("USER_GUIDE_EN.md", "SECURITY_MODEL.md", "RESPONSIBLE_USE.md", "RELEASE_CHECKLIST.md", "DEPTH_COVERAGE_AUDIT.md", f"RELEASE_NOTES_{APP_VERSION}.md"):
+    for filename in ("USER_GUIDE_EN.md", "SECURITY_MODEL.md", "RESPONSIBLE_USE.md", "RELEASE_CHECKLIST.md", "DEPTH_COVERAGE_AUDIT.md", "OBSIDIAN_AUDIT.md", f"RELEASE_NOTES_{APP_VERSION}.md"):
         shutil.copy2(BASE / "docs" / filename, destination / "docs" / filename)
     (destination / "source").mkdir()
     shutil.copy2(source_zip, destination / "source" / source_zip.name)
     components = collect_licenses(destination / "THIRD_PARTY_LICENSES")
-    manifest = {"application_version": APP_VERSION, "built_at_utc": datetime.now(timezone.utc).isoformat(),
+    manifest = {"product_name": "OBSIDIAN", "application_version": APP_VERSION, "built_at_utc": datetime.now(timezone.utc).isoformat(),
                 "python_version": platform.python_version(), "platform": platform.platform(),
                 "components": components, "source_archive": source_zip.name,
                 "license_audit_complete": False, "signed": False, "packaging_revision": 2}
     (destination / "BUILD_MANIFEST.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     (destination / "START_HERE.txt").write_text(
-        f"Qolam_Hacker {APP_VERSION}\n\n"
-        "Double-click Qolam_Hacker.exe in THIS folder.\n"
+        f"OBSIDIAN {APP_VERSION}\n\n"
+        "Double-click OBSIDIAN.exe in THIS folder.\n"
         "Keep _internal beside it; it contains the required runtime.\n\n"
         "Scanner: enter your authorized URL, confirm scope, then review the result.\n"
         "Double-click a finding for evidence and remediation.\n"
@@ -117,7 +117,7 @@ def package() -> Path:
             if path.is_file():
                 bundle.write(path, path.relative_to(destination).as_posix())
     sums = [f"{sha256(path)}  {path.name}" for path in (archive, source_zip)]
-    sums.append(f"{sha256(destination / 'Qolam_Hacker.exe')}  {name}/Qolam_Hacker.exe")
+    sums.append(f"{sha256(destination / 'OBSIDIAN.exe')}  {name}/OBSIDIAN.exe")
     (release / f"SHA256SUMS_{APP_VERSION}.txt").write_text("\n".join(sums) + "\n", encoding="ascii")
     print(archive)
     return archive

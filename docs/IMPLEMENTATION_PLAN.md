@@ -1,4 +1,4 @@
-# III85III QOLAM SENTINEL — IMPLEMENTATION PLAN
+# III85III OBSIDIAN — IMPLEMENTATION PLAN
 ## Evidence-Driven Windows Cybersecurity Platform
 
 ### Milestone Overview

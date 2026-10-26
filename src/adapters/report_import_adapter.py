@@ -93,7 +93,7 @@ def _first(mapping: Dict[str, Any], *keys: str, default: Any = "") -> Any:
 
 
 class ReportImportAdapter:
-    """Convert supported scanner exports to Qolam Sentinel evidence records."""
+    """Convert supported scanner exports to OBSIDIAN evidence records."""
 
     def import_file(self, file_path: str | Path) -> Tuple[ScanRun, List[Finding]]:
         started = time.monotonic()
@@ -221,7 +221,7 @@ class ReportImportAdapter:
                 target=target, severity=_severity(info.get("severity")),
                 severity_source="Nuclei template severity reported by source tool",
                 confidence=FindingConfidence.MEDIUM,
-                confidence_justification="Imported scanner match; Sentinel has not independently validated it.",
+                confidence_justification="Imported scanner match; OBSIDIAN has not independently validated it.",
                 status=FindingStatus.SCANNER_REPORTED,
                 evidence_raw=json.dumps(evidence, ensure_ascii=False),
                 evidence_summary=f"{template}: {evidence['matcher_name'] or 'template match'}",
@@ -368,7 +368,7 @@ class ReportImportAdapter:
                     severity=severity,
                     severity_source="SARIF level/security-severity reported by source tool",
                     confidence=FindingConfidence.MEDIUM,
-                    confidence_justification="Imported scanner report; Sentinel has not independently validated this result.",
+                    confidence_justification="Imported scanner report; OBSIDIAN has not independently validated this result.",
                     status=FindingStatus.SCANNER_REPORTED,
                     evidence_raw=json.dumps(evidence, ensure_ascii=False),
                     evidence_summary=f"{rule_id}: {location.get('uri', 'location not supplied')}"[:500],
@@ -440,7 +440,7 @@ class ReportImportAdapter:
                 severity=FindingSeverity.HIGH,
                 severity_source="Credential acceptance reported by imported Hydra output",
                 confidence=FindingConfidence.MEDIUM,
-                confidence_justification="Scanner-reported only; credentials are not independently replayed by Sentinel.",
+                confidence_justification="Scanner-reported only; credentials are not independently replayed by OBSIDIAN.",
                 status=FindingStatus.SCANNER_REPORTED,
                 evidence_raw=json.dumps(safe_evidence, ensure_ascii=False),
                 evidence_summary=f"{count} credential pair(s) reported; secret values omitted.",
@@ -509,7 +509,7 @@ class ReportImportAdapter:
                 severity=_severity(raw_severity, row.get("security-severity")),
                 severity_source="Imported JSON severity field",
                 confidence=FindingConfidence.MEDIUM,
-                confidence_justification="Imported scanner report; Sentinel has not independently validated this result.",
+                confidence_justification="Imported scanner report; OBSIDIAN has not independently validated this result.",
                 status=FindingStatus.SCANNER_REPORTED,
                 evidence_raw=json.dumps(safe_evidence, ensure_ascii=False),
                 evidence_summary=f"{collection_name}: {_text(location, 350)}".strip(),

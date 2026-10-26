@@ -113,7 +113,7 @@ def test_deep_query_probe_reports_reflection_without_storing_query_value(_browse
         [{"url": "https://owned.test/search?q=private-value", "names": ["q"]}], "scan-1", None
     )
 
-    assert len(calls) == 5
+    assert len(calls) == 8  # Reflection, four SQL controls and three template syntaxes.
     assert len(findings) == 1
     assert findings[0].cwe_id == "CWE-79"
     assert "private-value" not in findings[0].target
@@ -126,7 +126,7 @@ def test_deep_query_probe_marks_database_error_as_candidate_only():
     def bounded_get(url, timeout, headers=None):
         from urllib.parse import parse_qs, urlparse
         value = parse_qs(urlparse(url).query, keep_blank_values=True)["id"][0]
-        body = b"<p>safe</p>" if value.startswith("SENTINEL-PROBE") else b"You have an error in your SQL syntax"
+        body = b"You have an error in your SQL syntax" if value == "'" else b"<p>safe</p>"
         return SimpleNamespace(status_code=200, content=body, headers={"Content-Type": "text/html"}, encoding="utf-8")
 
     auditor._bounded_get = bounded_get
@@ -135,9 +135,9 @@ def test_deep_query_probe_marks_database_error_as_candidate_only():
     )
 
     assert len(findings) == 1
-    assert "Verbose MySQL error" in findings[0].title
+    assert "Reproducible MySQL error" in findings[0].title
     assert findings[0].cwe_id == "CWE-209"
-    assert "does not prove exploitable" in findings[0].description
+    assert "remain unverified" in findings[0].description
 
 
 def test_crawler_discovers_query_parameter_names_without_persisting_values():
@@ -218,7 +218,8 @@ def test_probe_query_parameters_path_traversal():
     auditor=WebAuditorAdapter()
     auditor._bounded_get=lambda url,timeout,**kwargs:_fixture_response("root:x:0:0:[SYNTHETIC]" if "etc/passwd" in unquote(url) else "safe")
     findings=auditor._probe_query_parameters([{"url":"https://owned.test/view?file=intro.txt","names":["file"]}],"fixture",None)
-    assert any(row.cwe_id=="CWE-22" for row in findings)
+    assert not any(row.cwe_id=="CWE-22" for row in findings)
+    assert any(row["check"] == "File boundary canary" and row["state"] == "BLOCKED" for row in auditor._coverage.checks)
 
 
 

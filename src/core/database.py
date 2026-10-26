@@ -1,5 +1,5 @@
 """
-III85III QOLAM SENTINEL — SQLite Persistence Layer
+III85III OBSIDIAN — SQLite Persistence Layer
 Thread-safe, parameterized, relational persistence for scans, findings, and events.
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ from src.core.models import (
 
 
 class DatabaseManager:
-    """Thread-safe SQLite manager for QOLAM SENTINEL."""
+    """Thread-safe SQLite manager for OBSIDIAN."""
 
     _instance: Optional[DatabaseManager] = None
     _lock = threading.Lock()

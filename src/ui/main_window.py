@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from src.ui.hud import create_sentinel_icon
+from src.ui.hud import create_obsidian_icon
 from src.ui.theme import DARK_TACTICAL_THEME
 from src.core.config import APP_VERSION
 
@@ -38,8 +38,8 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"Qolam_Hacker {APP_VERSION} | Web Security Assessment")
-        self.setWindowIcon(create_sentinel_icon())
+        self.setWindowTitle(f"OBSIDIAN {APP_VERSION} | Web Security Assessment")
+        self.setWindowIcon(create_obsidian_icon())
         self.resize(1360, 900)
         self.setMinimumSize(1080, 760)
         self.setStyleSheet(DARK_TACTICAL_THEME)
@@ -65,13 +65,13 @@ class MainWindow(QMainWindow):
         side.setSpacing(7)
 
         mark = QLabel()
-        mark.setPixmap(create_sentinel_icon().pixmap(46, 46))
+        mark.setPixmap(create_obsidian_icon().pixmap(46, 46))
         mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
         mark.setStyleSheet("font-size:35px; color:#63d8f2; font-weight:700;")
-        name = QLabel("QOLAM")
+        name = QLabel("OBSIDIAN")
         name.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        name.setStyleSheet("font-size:20px; color:#e9f5ff; font-weight:800; letter-spacing:3px;")
-        sub = QLabel("H A C K E R")
+        name.setStyleSheet("font-size:17px; color:#e9f5ff; font-weight:800; letter-spacing:3px;")
+        sub = QLabel("S E C U R I T Y")
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sub.setStyleSheet("font-size:9px; color:#6d8da8; letter-spacing:2px;")
         side.addWidget(mark)
@@ -155,7 +155,7 @@ class MainWindow(QMainWindow):
         for tab in self._tabs.values():
             workers.extend(value for value in vars(tab).values() if isinstance(value, QThread))
         if any(worker.isRunning() for worker in workers):
-            QMessageBox.information(self, "Work in progress", "A background operation is still running. Wait for it to finish before closing Sentinel.")
+            QMessageBox.information(self, "Work in progress", "A background operation is still running. Wait for it to finish before closing OBSIDIAN.")
             event.ignore()
             return
         event.accept()

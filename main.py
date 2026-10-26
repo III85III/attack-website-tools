@@ -1,5 +1,5 @@
 """
-III85III QOLAM SENTINEL — Application Entry Point
+III85III OBSIDIAN — Application Entry Point
 Evidence-Driven Cybersecurity Platform for Windows
 """
 from __future__ import annotations
@@ -24,6 +24,45 @@ from src.core.database import DatabaseManager
 from src.ui.main_window import MainWindow
 
 
+def _verify_startup(output_path: str) -> int:
+    """Release QA with a disposable database, no targets and no network scans."""
+    import tempfile
+    from PyQt6.QtCore import QTimer
+    os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    app = QApplication.instance() or QApplication([])
+    from PyQt6.QtGui import QFont, QFontDatabase
+    font_path = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "Fonts" / "segoeui.ttf"
+    if font_path.is_file():
+        QFontDatabase.addApplicationFont(str(font_path))
+        app.setFont(QFont("Segoe UI", 10))
+    app.setApplicationName("OBSIDIAN")
+    app.setOrganizationName("III85III")
+    old_database = DatabaseManager._instance
+    with tempfile.TemporaryDirectory(prefix="obsidian-startup-") as folder:
+        db = DatabaseManager(Path(folder) / "qa.db")
+        DatabaseManager._instance = db
+        window = None
+        try:
+            window = MainWindow()
+            window.show()
+            app.processEvents()
+            destination = Path(output_path).resolve()
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            screenshot = destination.with_suffix(".png")
+            screenshot_ok = window.grab().save(str(screenshot))
+            widget = window._tabs[0]
+            result = {"application_version": APP_VERSION, "window_title": window.windowTitle(),
+                "scan_button": widget.scan_btn.text(), "target_input_empty": not widget.target_input.text(),
+                "history_isolated": True, "screenshot_saved": screenshot_ok}
+            destination.write_text(json.dumps(result, indent=2), encoding="utf-8")
+            return 0 if screenshot_ok and "OBSIDIAN" in window.windowTitle() and result["target_input_empty"] else 1
+        finally:
+            if window:
+                window.close()
+            db.close()
+            DatabaseManager._instance = old_database
+
+
 def _verify_local_scanner(target_url: str, output_path: str, deep_scan: bool = False) -> int:
     """Run a real scanner smoke check against loopback only, for release QA."""
     try:
@@ -39,7 +78,7 @@ def _verify_local_scanner(target_url: str, output_path: str, deep_scan: bool = F
         from src.adapters.web_auditor import WebAuditorAdapter
         from src.core.models import ScanRun
 
-        scan = ScanRun(tool_name="Packaged Sentinel DAST self-check", target=target_url, raw_command="")
+        scan = ScanRun(tool_name="Packaged OBSIDIAN DAST self-check", target=target_url, raw_command="")
         scan, findings = WebAuditorAdapter().run_scan(target_url, scan, {"deep_scan": deep_scan})
         import tempfile
         from src.reporting.export_service import export_assessment
@@ -173,6 +212,8 @@ def _verify_local_api(target_url: str, spec_path: str, output_path: str) -> int:
 
 
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--verify-startup":
+        return _verify_startup(sys.argv[2])
     if len(sys.argv) == 5 and sys.argv[1] == "--verify-local-api":
         return _verify_local_api(sys.argv[2], sys.argv[3], sys.argv[4])
     if len(sys.argv) == 4 and sys.argv[1] == "--verify-local-browser":
@@ -183,7 +224,7 @@ def main():
         return _verify_local_session_review(sys.argv[2], sys.argv[3], sys.argv[4])
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Qolam_Hacker")
+    app.setApplicationName("OBSIDIAN")
     app.setOrganizationName("III85III")
     app.setApplicationVersion(APP_VERSION)
 

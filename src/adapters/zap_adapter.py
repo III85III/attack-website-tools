@@ -1,5 +1,5 @@
 """
-III85III QOLAM SENTINEL — OWASP ZAP Adapter
+III85III OBSIDIAN — OWASP ZAP Adapter
 Integrates with OWASP ZAP REST API or reports accurate offline/unavailable state.
 """
 from __future__ import annotations

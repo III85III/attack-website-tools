@@ -1,4 +1,4 @@
-"""Generate clear Persian security reports from saved Sentinel evidence."""
+"""Generate clear Persian security reports from saved OBSIDIAN evidence."""
 from __future__ import annotations
 
 import html
@@ -20,6 +20,7 @@ from dataclasses import replace
 from src.core.config import REPORTS_DIR
 from src.core.privacy import sanitize_data, sanitize_text
 from src.core.models import Finding, ScanRun, ToolHealthInfo
+from src.core.evidence import distinct_findings
 
 
 _FONT = "Tahoma"
@@ -109,11 +110,14 @@ def _safe_evidence(finding: Finding) -> str:
         parsed = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
         return _redact_string(raw[:2500]) or "شاهد خامی برای این مورد ثبت نشده است."
+    if isinstance(parsed, dict) and isinstance(parsed.get("nodes"), list) and isinstance(parsed.get("relationships"), list):
+        parsed = {"nodes_observed": len(parsed["nodes"]), "relationships_observed": len(parsed["relationships"]),
+            "truncated": parsed.get("truncated", False), "details": "Full relationship evidence is retained in the assessment JSON export."}
     return json.dumps(_safe_object(parsed), ensure_ascii=False, indent=2)[:3500]
 
 
 def _plain_finding_text(finding: Finding) -> tuple[str, str, str]:
-    """Translate Sentinel's common checks into short Persian reader guidance."""
+    """Translate OBSIDIAN's common checks into short Persian reader guidance."""
     title = finding.title or "یافتهٔ امنیتی"
     lower = title.lower()
     if lower == "api authentication declaration differs from anonymous response":
@@ -125,7 +129,7 @@ def _plain_finding_text(finding: Finding) -> tuple[str, str, str]:
     if "insecure unencrypted transport" in lower:
         return ("ارتباط وب‌سایت رمزگذاری نشده است", "اطلاعاتی که کاربر به این سایت می‌فرستد ممکن است در مسیر شبکه خوانده یا تغییر داده شود. این نتیجه از استفادهٔ HTTP به‌دست آمده و به معنی کشف سرقت اطلاعات نیست.", "برای سایت HTTPS فعال کنید و پس از اطمینان از کارکرد آن، کاربران را به نسخهٔ امن هدایت کنید.")
     if "password form served over unencrypted http" in lower:
-        return ("فرم گذرواژه روی ارتباط ناامن نمایش داده شده است", "صفحه‌ای که ورودی گذرواژه دارد با HTTP باز شده است. Sentinel فرم را ارسال نکرده و هیچ گذرواژه‌ای آزمایش یا ذخیره نشده است.", "صفحهٔ ورود و مقصد ارسال فرم را فقط از HTTPS ارائه کنید.")
+        return ("فرم گذرواژه روی ارتباط ناامن نمایش داده شده است", "صفحه‌ای که ورودی گذرواژه دارد با HTTP باز شده است. OBSIDIAN فرم را ارسال نکرده و هیچ گذرواژه‌ای آزمایش یا ذخیره نشده است.", "صفحهٔ ورود و مقصد ارسال فرم را فقط از HTTPS ارائه کنید.")
     if "content-security-policy" in lower:
         return ("سیاست امنیت محتوای مرورگر تنظیم نشده است", "مرورگر برای محدودکردن منبع اسکریپت‌ها و محتوای صفحه، سیاست CSP دریافت نکرده است. این مورد به‌تنهایی وجود XSS را ثابت نمی‌کند، اما یک لایهٔ دفاعی مهم غایب است.", "یک CSP متناسب با منابع واقعی سایت طراحی و ابتدا در حالت گزارش‌گیری آزمایش کنید؛ سپس آن را اعمال کنید.")
     if "strict-transport-security" in lower or " hsts" in lower:
@@ -345,7 +349,7 @@ def _configure_document(doc) -> None:
 
     header = section.header.paragraphs[0]
     _set_rtl(header, WD_ALIGN_PARAGRAPH.RIGHT)
-    _style_run(header.add_run("III85III QOLAM SENTINEL   |   گزارش امنیتی"), size=8, color="667085")
+    _style_run(header.add_run("III85III OBSIDIAN   |   گزارش امنیتی"), size=8, color="667085")
     footer = section.footer.paragraphs[0]
     _set_rtl(footer, WD_ALIGN_PARAGRAPH.CENTER)
     _style_run(footer.add_run("محرمانه   •   صفحه "), size=8, color="667085")
@@ -370,7 +374,7 @@ class ReportGenerator:
         # Redact every visible field, not only the raw-evidence table. Work on
         # copies so exported artifacts cannot alter the stored assessment.
         scan_run = ScanRun.from_dict(sanitize_data(scan_run.to_dict())) if scan_run else None
-        findings = [Finding.from_dict(sanitize_data(finding.to_dict())) for finding in findings]
+        findings = distinct_findings([Finding.from_dict(sanitize_data(finding.to_dict())) for finding in findings])
         tools_health = [replace(tool, name=sanitize_text(tool.name),
                                 version=sanitize_text(tool.version) if tool.version else None,
                                 path=sanitize_text(tool.path) if tool.path else None,
@@ -413,6 +417,10 @@ class ReportGenerator:
         if false_positive_count:
             summary += f" تعداد {false_positive_count} موردی که به‌عنوان مثبت کاذب علامت‌گذاری شده‌اند، از شمارش ریسک فعال کنار گذاشته شدند و همچنان در فهرست یافته‌ها دیده می‌شوند."
         self._paragraph(doc, summary)
+        validated = sum(_value(f.status).upper() == "VALIDATED" for f in findings)
+        self._paragraph(doc, f"یافته‌های دارای وضعیت اعتبارسنجی‌شده: {validated}. شدت‌های بالا در خلاصه شامل فرضیه‌ها و گزارش ابزار نیز هستند و به‌تنهایی تأیید آسیب‌پذیری نیستند.")
+        if not validated:
+            self._paragraph(doc, "هیچ یافته‌ای با وضعیت اعتبارسنجی‌شده در این ارزیابی ثبت نشده است.")
 
         verification_counts = {}
         for finding in findings:
@@ -443,6 +451,12 @@ class ReportGenerator:
         _add_table(doc, ["مشخصات", "مقدار"], meta_rows, [1.45, 5.35], font_size=9)
 
         if scan_run:
+            ledger = next((e for e in scan_run.execution_log if e.get("operation") == "Verification coverage"), None)
+            if ledger and ledger.get("checks"):
+                _heading(doc, "پوشش واقعی آزمون‌ها", level=2)
+                self._paragraph(doc, "COMPLETED فقط اجرای عملیات محدود نام‌برده است؛ اثبات نبود آسیب‌پذیری نیست. شمارش درخواست بخش‌های تو در تو قابل جمع‌زدن نیست.")
+                rows = [[str(c.get("check", "")), str(c.get("state", "")), str(c.get("request_count", 0)), str(c.get("reason", ""))] for c in ledger["checks"]]
+                _add_table(doc, ["آزمون", "وضعیت", "درخواست", "روش یا محدودیت"], rows, [1.35, 1.05, .6, 3.8], font_size=9)
             api_review = next((entry for entry in scan_run.execution_log if entry.get("operation") == "API coverage"), None)
             if api_review:
                 _heading(doc, "پوشش مسیرهای API", level=2)
@@ -500,7 +514,6 @@ class ReportGenerator:
         _style_run(note.add_run("تفسیر شدت: "), bold=True, size=9)
         _style_run(note.add_run("بحرانی و زیاد نیازمند اولویت بالا هستند؛ متوسط و کم برای برنامهٔ اصلاح ثبت شده‌اند؛ اطلاعاتی به‌تنهایی آسیب‌پذیری محسوب نمی‌شود."), size=9)
 
-        doc.add_page_break()
         _heading(doc, "فهرست یافته‌ها", level=1)
         ordered = sorted(
             findings,
@@ -520,20 +533,20 @@ class ReportGenerator:
         else:
             self._paragraph(doc, "برای این اسکن یافته‌ای ثبت نشده است.")
 
-        _heading(doc, "شرح تفصیلی یافته‌ها", level=1)
+        if ordered:
+            _heading(doc, "شرح تفصیلی یافته‌ها", level=1)
         for number, finding in enumerate(ordered, 1):
             self._write_finding(doc, number, finding)
 
-        doc.add_page_break()
         _heading(doc, "روش ارزیابی و محدودیت‌ها", level=1)
         method = (
-            "این گزارش فقط یافته‌ها و شواهد ذخیره‌شده در Qolam Sentinel را بازگو می‌کند. "
+            "این گزارش فقط یافته‌ها و شواهد ذخیره‌شده در OBSIDIAN را بازگو می‌کند. "
             "وضعیت هر مورد در جدول همان یافته آمده است؛ گزارش اسکنر به‌تنهایی تأیید مستقل محسوب نمی‌شود."
         )
         self._paragraph(doc, method)
         self._paragraph(doc, "یافته‌های واردشده از ابزارهای بیرونی ممکن است عنوان و شرح را به زبان اصلی همان ابزار نگه دارند؛ وضعیت و منبع گزارش در کنار هر یافته مشخص است.")
-        if scan_run and any(name in scan_run.tool_name for name in ("Web Security Auditor", "Sentinel DAST", "Sentinel Web")):
-            self._paragraph(doc, "محدودهٔ موتور وب: حداکثر ۲۵ صفحه از همان مبدأ وب، درخواست GET، بدون ارسال فرم و بدون دنبال‌کردن تغییرمسیر. هر پاسخ حداکثر تا ۱ مگابایت برای تحلیل دریافت می‌شود.")
+        if scan_run and any(name in scan_run.tool_name for name in ("Web Security Auditor", "Sentinel DAST", "Sentinel Web", "OBSIDIAN DAST", "OBSIDIAN Web")):
+            self._paragraph(doc, "محدودهٔ موتور وب: حداکثر ۴۰ صفحه از همان مبدأ وب، درخواست GET، بدون ارسال فرم و بدون دنبال‌کردن تغییرمسیر. هر پاسخ حداکثر تا ۱ مگابایت برای تحلیل دریافت می‌شود.")
             self._paragraph(doc, "در اسکن عمیق، برای حداکثر سه نامزد بازتاب ورودی، تأیید اجرای نشانگر بی‌خطر XSS در مرورگر تلاش می‌شود؛ وضعیت واقعی هر تلاش در شواهد آمده است. XSS ذخیره‌شده، تمام مسیرهای DOM، بهره‌برداری SQL و منطق کامل کسب‌وکار پوشش داده نمی‌شوند. بررسی نشست فقط در صورت تنظیم صریح انجام می‌شود. نبودن یافته، نبود قطعی آسیب‌پذیری را ثابت نمی‌کند.")
         if scan_run and "Nmap" in scan_run.tool_name:
             self._paragraph(doc, "این گزارش شامل مشاهدهٔ پورت و سرویس از خروجی Nmap است. باز بودن پورت به‌تنهایی به معنی وجود آسیب‌پذیری نیست.")
@@ -555,8 +568,9 @@ class ReportGenerator:
 
         doc.core_properties.title = report_title or "گزارش ارزیابی امنیتی"
         doc.core_properties.subject = f"گزارش امنیتی برای {target}"
-        doc.core_properties.author = "III85III QOLAM SENTINEL"
-        filename = f"Sentinel_Report_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.docx"
+        doc.core_properties.keywords = "OBSIDIAN, security assessment, sanitized evidence"
+        doc.core_properties.author = "III85III OBSIDIAN"
+        filename = f"OBSIDIAN_Report_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.docx"
         out_path = self.output_dir / filename
         doc.save(out_path)
         return out_path
@@ -573,6 +587,21 @@ class ReportGenerator:
         confidence = _value(finding.confidence).upper()
         title_fa, plain_explanation, remediation_fa = _plain_finding_text(finding)
         _heading(doc, f"{number}. {_SEVERITY_FA.get(severity, severity)} — {title_fa}", level=2)
+        self._paragraph(doc, plain_explanation)
+        try:
+            structured = json.loads(finding.evidence_raw)
+        except (ValueError, TypeError):
+            structured = {}
+        if not isinstance(structured, dict):
+            structured = {}
+        for key, label in (("prerequisites", "پیش‌نیاز بازآزمایی"), ("demonstrated_impact", "اثر مشاهده‌شده"), ("limitations", "محدودیت شواهد")):
+            if structured.get(key):
+                self._paragraph(doc, label + ": " + str(structured[key]))
+        steps = structured.get("reproduction_steps", [])
+        if isinstance(steps, list) and steps:
+            _heading(doc, "راهنمای بازآزمایی در محدوده مجاز", level=3)
+            for index, step in enumerate(steps[:12], 1):
+                self._paragraph(doc, f"{index}. {step}")
         details = [
             ["شناسهٔ یافته", finding.id],
             ["زمان ثبت", _local_time(finding.timestamp)],
@@ -582,12 +611,10 @@ class ReportGenerator:
             ["اطمینان گزارش", f"{_CONFIDENCE_FA.get(confidence, confidence)} — {_CONFIDENCE_MEANING.get(confidence, 'سطحی که ابزار منبع اعلام کرده است.')}"],
             ["محل / مؤلفه", finding.affected_component or finding.target or "در گزارش منبع مشخص نشده است"],
             ["شناسهٔ استاندارد", "  |  ".join(item for item in (finding.cve_id, finding.cwe_id) if item) or "ثبت نشده"],
-            ["خلاصهٔ قابل‌فهم", plain_explanation],
             ["توضیح فنی منبع", finding.description or "توضیحی در گزارش منبع ثبت نشده است"],
             ["خلاصهٔ شواهد", finding.evidence_summary or "خلاصهٔ جداگانه ثبت نشده است"],
             ["دلیل اطمینان اعلام‌شده", finding.confidence_justification or "در گزارش منبع ذکر نشده است"],
             ["شاهد فنی خام با حذف داده‌های حساس", _safe_evidence(finding)],
-            ["راهکار اصلاح", remediation_fa],
             ["راهکار ثبت‌شدهٔ ابزار", finding.remediation or "در گزارش منبع ثبت نشده است"],
             ["ابزار و نسخه", f"{finding.source_tool}  |  {finding.tool_version}"],
         ]
@@ -612,14 +639,14 @@ class ReportGenerator:
                     details.append(["تأیید اجرای XSS", "شواهد کافی برای تأیید اجرای کد در مرورگر ثبت نشده است."])
         if title_fa != finding.title:
             details.insert(5, ["عنوان اصلی ابزار", finding.title])
-        table = _add_table(doc, ["بخش", "جزئیات"], details, [1.45, 5.35], font_size=8)
+        table = _add_table(doc, ["بخش", "جزئیات"], details, [1.45, 5.35], font_size=9)
         if table.rows:
             for cell in table.rows[0].cells:
                 _set_cell_shading(cell, _NAVY)
             for row_index, row in enumerate(table.rows[1:], 1):
                 _set_cell_shading(row.cells[0], _BLUE)
-                _set_cell_text(row.cells[0], details[row_index - 1][0], bold=True, size=8)
-                _set_cell_text(row.cells[1], details[row_index - 1][1], size=8)
+                _set_cell_text(row.cells[0], details[row_index - 1][0], bold=True, size=9)
+                _set_cell_text(row.cells[1], details[row_index - 1][1], size=9)
         note = doc.add_paragraph()
         _set_rtl(note)
         _style_run(note.add_run("نکته: "), bold=True, size=8, color="667085")
@@ -639,15 +666,16 @@ class JSONExporter:
         findings: List[Finding],
         tools_health: List[ToolHealthInfo],
     ) -> Path:
+        findings = distinct_findings(findings)
         data = {
-            "platform": "III85III QOLAM SENTINEL",
+            "platform": "III85III OBSIDIAN",
             "export_timestamp": datetime.now().astimezone().isoformat(),
             "scan": scan_run.to_dict() if scan_run else None,
             "tool_health": [t.to_dict() for t in tools_health],
             "total_findings": len(findings),
             "findings": [f.to_dict() for f in findings],
         }
-        filename = f"Sentinel_Export_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.json"
+        filename = f"OBSIDIAN_Export_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.json"
         out_path = self.output_dir / filename
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(sanitize_data(data), f, ensure_ascii=False, indent=2)
@@ -670,7 +698,7 @@ class MarkdownExporter:
         report_title: str = "Security Assessment Report",
     ) -> Path:
         scan_run = ScanRun.from_dict(sanitize_data(scan_run.to_dict())) if scan_run else None
-        findings = [Finding.from_dict(sanitize_data(finding.to_dict())) for finding in findings]
+        findings = distinct_findings([Finding.from_dict(sanitize_data(finding.to_dict())) for finding in findings])
         target = sanitize_text(target_name) or (scan_run.target if scan_run else "Target Not Specified")
         generated_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -688,7 +716,7 @@ class MarkdownExporter:
         lines = [
             f"# 🛡️ {report_title}",
             "",
-            "> **Platform**: III85III QOLAM SENTINEL — Professional Security Assessment System  ",
+            "> **Platform**: III85III OBSIDIAN — Professional Security Assessment System  ",
             f"> **Target**: `{target}`  ",
             f"> **Generated**: {generated_at}  ",
             f"> **Assessment ID**: `{scan_run.id if scan_run else 'N/A'}`",
@@ -714,6 +742,14 @@ class MarkdownExporter:
                 f"- **Reason/Limitation**: {scan_run.completion_reason or scan_run.error_message or 'Completed normally.'}",
                 "",
             ])
+
+        if scan_run:
+            ledger = next((e for e in scan_run.execution_log if e.get("operation") == "Verification coverage"), {})
+            if ledger.get("checks"):
+                lines.extend(["## Verification coverage", "", "Completed operations do not establish absence of vulnerabilities. Nested request counts are not additive.", ""])
+                for check in ledger["checks"]:
+                    lines.append(f"- **{check['check']}** — {check['state']}; requests: {check['request_count']}. {check['reason']}")
+                lines.append("")
 
         lines.extend([
             "---",
@@ -775,13 +811,13 @@ class MarkdownExporter:
         lines.extend([
             "## ⚙️ Methodology & Limitations",
             "",
-            "- **Defensive & Evidence-Based**: Qolam Sentinel only reports verified or source-documented telemetry without executing destructive exploitation.",
+            "- **Defensive & Evidence-Based**: OBSIDIAN only reports verified or source-documented telemetry without executing destructive exploitation.",
             "- **Passive Subdomain Intelligence**: Certificate transparency data is harvested passively via public logs; active authorization is strictly required before assessing secondary assets.",
             "- **Authentication & Business Logic**: Automated scanning does not replace comprehensive manual authorization and application workflow reviews.",
             "",
         ])
 
-        filename = f"Sentinel_Report_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.md"
+        filename = f"OBSIDIAN_Report_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.md"
         out_path = self.output_dir / filename
         with open(out_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
@@ -804,7 +840,7 @@ class HTMLExporter:
         report_title: str = "Security Assessment Report",
     ) -> Path:
         scan_run = ScanRun.from_dict(sanitize_data(scan_run.to_dict())) if scan_run else None
-        findings = [Finding.from_dict(sanitize_data(finding.to_dict())) for finding in findings]
+        findings = distinct_findings([Finding.from_dict(sanitize_data(finding.to_dict())) for finding in findings])
         target = sanitize_text(target_name) or (scan_run.target if scan_run else "Target Not Specified")
         generated_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -857,12 +893,19 @@ class HTMLExporter:
             </div>
             """)
 
+        coverage_html = ""
+        if scan_run:
+            ledger = next((e for e in scan_run.execution_log if e.get("operation") == "Verification coverage"), {})
+            if ledger.get("checks"):
+                entries = "".join("<li><strong>" + html.escape(str(c["check"])) + "</strong>: " + html.escape(str(c["state"])) + " — " + html.escape(str(c["reason"])) + "</li>" for c in ledger["checks"])
+                coverage_html = "<section><h2>Verification coverage</h2><p>Completed operations do not establish absence of vulnerabilities.</p><ul>" + entries + "</ul></section>"
+
         full_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{html.escape(report_title)} - III85III Sentinel</title>
+<title>{html.escape(report_title)} - III85III OBSIDIAN</title>
 <style>
     :root {{
         --bg: #090d16;
@@ -1065,7 +1108,7 @@ class HTMLExporter:
 <div class="container">
     <header>
         <div class="brand">
-            <h1>🛡️ III85III <span>SENTINEL</span></h1>
+            <h1>🛡️ III85III <span>OBSIDIAN</span></h1>
             <div style="font-size: 14px; color: var(--cyan);">Evidence-Based Security Assessment</div>
         </div>
         <div class="meta-bar">
@@ -1097,12 +1140,13 @@ class HTMLExporter:
         <input type="text" id="searchBox" class="search-input" placeholder="Search findings..." onkeyup="searchFindings()">
     </div>
 
+    {coverage_html}
     <div id="findingsContainer">
         {''.join(cards_html) if cards_html else '<div style="text-align:center; padding:40px; color:var(--text-muted);">No findings recorded for this assessment.</div>'}
     </div>
 
     <footer>
-        III85III QOLAM SENTINEL &bull; Confirmed and source-reported findings &bull; Redacted telemetry
+        III85III OBSIDIAN &bull; Confirmed and source-reported findings &bull; Redacted telemetry
     </footer>
 </div>
 <script>
@@ -1131,7 +1175,7 @@ class HTMLExporter:
 </body>
 </html>
 """
-        filename = f"Sentinel_Report_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.html"
+        filename = f"OBSIDIAN_Report_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.html"
         out_path = self.output_dir / filename
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(full_html)

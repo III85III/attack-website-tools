@@ -1,5 +1,5 @@
 """
-III85III QOLAM SENTINEL — Windows Defender Adapter
+III85III OBSIDIAN — Windows Defender Adapter
 Queries native Windows Defender protection status and authentic threat detections via PowerShell.
 """
 from __future__ import annotations

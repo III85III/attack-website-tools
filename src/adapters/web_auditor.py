@@ -1,5 +1,5 @@
 """
-III85III QOLAM SENTINEL — Native Web Security Auditor
+III85III OBSIDIAN — Native Web Security Auditor
 Comprehensive, zero-API web application vulnerability, headers, cookies, and exposure auditor.
 """
 from __future__ import annotations
@@ -23,6 +23,8 @@ from src.adapters.base import BaseToolAdapter
 from src.adapters.browser_xss import BrowserXSSVerifier, MAX_BROWSER_CANDIDATES
 from src.core.application_map import ApplicationMap, origin as map_origin, safe_url as map_safe_url, read_only_candidate
 from src.core.privacy import sanitize_data
+from src.core.coverage import CoverageLedger
+from src.core.evidence import distinct_findings
 from src.core.cve_intel import CVEIntelligenceEngine
 from src.core.models import (
     Finding,
@@ -80,18 +82,23 @@ class _PageInventoryParser(HTMLParser):
                 "password_field": False,
                 "has_csrf_token": False,
                 "fields": [],
+                "query_defaults": {},
             }
             self.forms.append(self._form)
         elif tag in {"input", "textarea", "select", "button"} and self._form is not None:
             inp_type = values.get("type", "").lower()
-            inp_name = values.get("name", "").lower()
+            inp_name = values.get("name", "")
             if inp_type == "password":
                 self._form["password_field"] = True
-            if any(k in inp_name for k in ("csrf", "xsrf", "token", "_token", "authenticity_token", "nonce")):
+            if any(k in inp_name.lower() for k in ("csrf", "xsrf", "token", "_token", "authenticity_token", "nonce")):
                 self._form["has_csrf_token"] = True
             if inp_name:
                 if inp_name not in self._form["fields"]:
                     self._form["fields"].append(inp_name)
+                if ("disabled" not in values and inp_type not in {"password", "file", "submit", "button", "reset"}
+                        and (inp_type not in {"checkbox", "radio"} or "checked" in values)
+                        and not re.search(r"(?i)csrf|xsrf|nonce|token|secret|password|auth|cookie|session", inp_name)):
+                    self._form["query_defaults"][inp_name] = values.get("value", "")[:256]
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "form":
@@ -350,10 +357,11 @@ class WebAuditorAdapter(BaseToolAdapter):
         self.session = requests.Session()
         self.session.trust_env = False
         self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) III85III-QolamSentinel/1.0",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) III85III-OBSIDIAN/1.0",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         })
         self._scan_metrics: Dict[str, Any] = {}
+        self._coverage = CoverageLedger()
         self._browser_checks: List[Dict[str, Any]] = []
 
     def detect(self) -> ToolHealthInfo:
@@ -415,6 +423,7 @@ class WebAuditorAdapter(BaseToolAdapter):
         7. CVE correlation for detected components
         """
         findings: List[Finding] = []
+        self._coverage = CoverageLedger()
         self._browser_checks = []
         self._discovered_endpoints = []
         self._collected_scripts_text = []
@@ -422,6 +431,8 @@ class WebAuditorAdapter(BaseToolAdapter):
         self._application_map = ApplicationMap(target_url)
         self._authorized_origin = map_origin(target_url)
         self._request_attempts = 0
+        self._collection_stop = None
+        self._request_evidence = []
         self._next_request_at = 0
         valid_target, validation_message, url = self.validate_target_url(target_url)
         try:
@@ -501,10 +512,12 @@ class WebAuditorAdapter(BaseToolAdapter):
             return findings
 
         headers = resp.headers
+        if resp.status_code in {429, 503} or self._cancelled():
+            return findings
 
         # Crawl a bounded number of same-origin HTML pages. The crawler issues
         # GET requests only; it never submits forms or follows redirects.
-        inventory = self._crawl_same_origin(url, resp, progress_callback)
+        inventory = self._covered_operation("Same-origin application mapping", self._crawl_same_origin, url, resp, progress_callback)
         if inventory["pages"]:
             findings.append(self._inventory_finding(url, scan_id, inventory))
             password_forms = inventory["http_password_forms"]
@@ -514,7 +527,7 @@ class WebAuditorAdapter(BaseToolAdapter):
                     title=f"Password form served over unencrypted HTTP on {domain}",
                     description=(
                         f"The same-origin crawl found {password_forms} HTML password form(s) served over HTTP. "
-                        "A browser may submit credentials without transport encryption. Sentinel did not submit any form."
+                        "A browser may submit credentials without transport encryption. OBSIDIAN did not submit any form."
                     ),
                     source_tool=self.name,
                     tool_version=self.version,
@@ -522,7 +535,7 @@ class WebAuditorAdapter(BaseToolAdapter):
                     severity=FindingSeverity.HIGH,
                     severity_source="Observed HTTP origin and password input field",
                     confidence=FindingConfidence.HIGH,
-                    confidence_justification="The page response was served over HTTP and contained an input[type=password]; no credentials were entered or transmitted by Sentinel.",
+                    confidence_justification="The page response was served over HTTP and contained an input[type=password]; no credentials were entered or transmitted by OBSIDIAN.",
                     status=FindingStatus.SCANNER_REPORTED,
                     evidence_raw=json.dumps({"password_forms": password_forms, "page_paths": inventory["password_form_paths"][:20]}, ensure_ascii=False),
                     evidence_summary=f"{password_forms} password form(s) found; forms were not submitted.",
@@ -535,12 +548,12 @@ class WebAuditorAdapter(BaseToolAdapter):
         if deep_scan:
             if progress_callback:
                 progress_callback("Checking CORS policy and safe query-parameter probes...")
-            findings.extend(self._check_cors(url, scan_id))
+            findings.extend(self._covered_operation("CORS origin controls", self._check_cors, url, scan_id))
             # (Parameter probing scheduled after JS asset and endpoint discovery)
 
         # Frontend JavaScript Assets & Endpoints Analysis
         if inventory.get("scripts"):
-            findings.extend(self._audit_javascript_assets(url, inventory["scripts"], scan_id, progress_callback))
+            findings.extend(self._covered_operation("JavaScript and source maps", self._audit_javascript_assets, url, inventory["scripts"], scan_id, progress_callback))
 
         # Merge discovered API endpoints into input points for active parameter testing
         discovered_input_points = list(inventory.get("input_points", []))
@@ -559,7 +572,7 @@ class WebAuditorAdapter(BaseToolAdapter):
                         })
 
         if deep_scan:
-            findings.extend(self._probe_query_parameters(discovered_input_points, scan_id, progress_callback))
+            findings.extend(self._covered_operation("Discovered GET input checks", self._probe_query_parameters, discovered_input_points, scan_id, progress_callback))
 
         # 2. Security Headers Audit
         if progress_callback:
@@ -1089,7 +1102,7 @@ class WebAuditorAdapter(BaseToolAdapter):
                                         severity=FindingSeverity.MEDIUM,
                                         severity_source="OWASP API Security Top 10 API8:2023 Security Misconfiguration",
                                         confidence=FindingConfidence.CONFIRMED,
-                                        confidence_justification="POST query returned valid __schema introspection payload",
+                                        confidence_justification="GET query returned a schema-shaped introspection response; permissions and impact not established",
                                         status=FindingStatus.SCANNER_REPORTED,
                                         evidence_raw=g_resp.text[:300],
                                         evidence_summary="GraphQL introspection enabled and queryable",
@@ -1116,17 +1129,21 @@ class WebAuditorAdapter(BaseToolAdapter):
 
         # 9. BFLA & HTTP Method Tampering (for deep_scan)
         if deep_scan:
-            findings.extend(self._audit_bfla_and_verbs(url, scan_id, progress_callback))
+            findings.extend(self._covered_operation("GET and HEAD status comparison", self._audit_bfla_and_verbs, url, scan_id, progress_callback))
 
         # 10. Excessive Data Exposure Audit for discovered API routes
         disc_eps = getattr(self, "_discovered_endpoints", [])
         if disc_eps:
-            findings.extend(self._audit_api_data_exposure(url, disc_eps, scan_id))
+            findings.extend(self._covered_operation("Anonymous API response inspection", self._audit_api_data_exposure, url, disc_eps, scan_id))
 
         return findings
 
     def _bounded_get(self, url: str, timeout: int, headers: Optional[Dict[str, str]] = None, method: str = "GET") -> Any:
         """Fetch a response without redirects and cap its in-memory body size."""
+        if self._cancelled():
+            raise requests.RequestException("Assessment cancelled")
+        if getattr(self, "_collection_stop", None):
+            raise requests.RequestException("Collection stopped after a target backpressure response")
         if method not in {"GET", "HEAD"}:
             raise requests.RequestException("Unsupported collection method")
         if getattr(self, "_authorized_origin", None) and map_origin(url) != self._authorized_origin:
@@ -1139,6 +1156,8 @@ class WebAuditorAdapter(BaseToolAdapter):
                 self._scan_metrics["errors"].append("request_budget_exceeded")
             raise requests.RequestException("Native request budget exhausted")
         time.sleep(max(0, getattr(self, "_next_request_at", 0) - time.monotonic()))
+        if self._cancelled():
+            raise requests.RequestException("Assessment cancelled during rate limiting")
         self._next_request_at = time.monotonic() + 0.05
         if self._scan_metrics:
             self._scan_metrics["request_count"] += 1
@@ -1189,6 +1208,13 @@ class WebAuditorAdapter(BaseToolAdapter):
             raise
         finally:
             response.close()
+        if response.status_code in {429, 503}:
+            self._collection_stop = f"HTTP {response.status_code}: target requested backoff or was unavailable"
+            if self._scan_metrics:
+                self._scan_metrics["errors"].append("target_backpressure_stop")
+        if hasattr(self, "_request_evidence") and len(self._request_evidence) < 240:
+            self._request_evidence.append({"method": method, "url": map_safe_url(url), "status": response.status_code,
+                "body_bytes_collected": len(response._content), "response_sha256": hashlib.sha256(response._content).hexdigest()})
         return response
 
     def _crawl_same_origin(self, start_url: str, first_response: Any, progress_callback: Optional[Any]) -> Dict[str, Any]:
@@ -1242,9 +1268,9 @@ class WebAuditorAdapter(BaseToolAdapter):
                     form_action = urljoin(page_url, form.get("action") or parsed.path or "/")
                     fa_parsed = urlparse(form_action)
                     if self._web_origin(fa_parsed) == origin:
-                        f_names = [f for f in form["fields"] if f]
+                        f_names = list(form.get("query_defaults", {}))
                         if f_names:
-                            f_query = urlencode([(f, "1") for f in f_names])
+                            f_query = urlencode([(f, form["query_defaults"][f]) for f in f_names])
                             f_url = urlunparse((fa_parsed.scheme, fa_parsed.netloc, fa_parsed.path or "/", "", f_query, ""))
                             point_key = (f_url, tuple(f_names))
                             if point_key not in input_point_keys and len(input_points) < MAX_ACTIVE_PARAMETERS:
@@ -1390,6 +1416,99 @@ class WebAuditorAdapter(BaseToolAdapter):
                     remediation='Pass input as template data rather than concatenating it into template source. Validate the template context and retest both challenges after remediation.')]
         return []
 
+    def _covered_operation(self, check, operation, *args):
+        before = self._scan_metrics.get("request_count", 0)
+        errors = len(self._scan_metrics.get("errors", []))
+        result = operation(*args)
+        count = self._scan_metrics.get("request_count", 0) - before
+        interrupted = self._cancelled() or getattr(self, "_collection_stop", None)
+        state = "INCONCLUSIVE" if interrupted or len(self._scan_metrics.get("errors", [])) > errors else "COMPLETED"
+        self._coverage.record(check, state, "Bounded operation executed; findings and individual controls determine evidence strength.", count)
+        return result
+
+    def _cancelled(self):
+        if getattr(self, "_was_cancelled", False):
+            return True
+        callback = getattr(self, "_cancel_check", None)
+        if callback and callback():
+            self._was_cancelled = True
+            return True
+        return False
+
+    def _controlled_sql_error(self, original, pairs, parameter, scan_id, safe_target):
+        """Confirm a repeatable error condition, never label it proven SQL injection."""
+        observations = []
+        marker = "OBSIDIAN" + secrets.token_hex(8)
+        for label, value in (("baseline", None), ("control", marker), ("quote", "'"), ("repeat_quote", "'")):
+            query = pairs if value is None else [(n, value if n == parameter else v) for n, v in pairs]
+            url = urlunparse(original._replace(query=urlencode(query, doseq=True)))
+            try:
+                response = self._bounded_get(url, timeout=6)
+            except requests.RequestException:
+                self._coverage.record("SQL error differential", "INCONCLUSIVE", "A required response was unavailable.", len(observations), target=safe_target, parameter=parameter)
+                return []
+            body = _probe_text(response).casefold()
+            engines = sorted(engine for engine, signatures in SQL_ERROR_SIGNATURES.items() if any(sig in body for sig in signatures))
+            observations.append({"role": label, "status": response.status_code, "engines": engines,
+                "response_sha256": hashlib.sha256(response.content).hexdigest()})
+        initial = set(observations[0]["engines"]) | set(observations[1]["engines"])
+        repeated = (set(observations[2]["engines"]) & set(observations[3]["engines"])) - initial
+        # An upstream denial/challenge is not database error evidence.
+        repeated = repeated if all(o["status"] not in {401, 403, 429} for o in observations) else set()
+        self._coverage.record("SQL error differential", "COMPLETED", "Baseline, alphanumeric control and two quote responses compared; no extraction or timing payloads.", 4, target=safe_target, parameter=parameter, new_repeated_signatures=sorted(repeated))
+        if not repeated:
+            return []
+        engine = sorted(repeated)[0]
+        return [Finding(scan_id=scan_id, title=f"Reproducible {engine} error after quote input",
+            description="A database-specific error was absent from the original input and alphanumeric control, and present in both quote responses. This demonstrates input-dependent error disclosure; exploitable SQL injection and data access remain unverified.",
+            source_tool=self.name, tool_version=self.version, target=safe_target,
+            severity=FindingSeverity.MEDIUM, severity_source="Repeated database error disclosure; no extraction or authorization impact established",
+            confidence=FindingConfidence.HIGH, confidence_justification="Same signature in two quote responses and neither control response.",
+            status=FindingStatus.POTENTIAL, cwe_id="CWE-209",
+            evidence_raw=json.dumps({"verification_method": "controlled_sql_error_differential", "parameter": parameter,
+                "observations": observations, "control_value": marker,
+                "prerequisites": "Authorized read-only query endpoint; restore original non-test query values locally.",
+                "reproduction_steps": ["Request the endpoint with its original input and record status and database error signatures.",
+                    "Replace only the indicated parameter with the recorded alphanumeric control and compare.",
+                    "Replace only that parameter with a single quote twice; verify the same new database signature in both responses."],
+                "demonstrated_impact": "Input-dependent database error disclosure only.",
+                "limitations": "No SQL data extraction, command execution, timing query or proof of injectable query semantics."}),
+            evidence_summary="Four response fingerprints retained; raw bodies and private query values excluded.",
+            remediation="Use parameterized database calls; return generic errors and keep detailed exceptions in protected server logs.")]
+
+    def _verify_file_canary(self, original, pairs, parameter, scan_id, safe_target):
+        """Only assessor-provisioned harmless files, with an explicit expected marker."""
+        plans = getattr(self, "_canary_files", [])
+        plan = next((item for item in plans if item.get("endpoint") == original.path and item.get("parameter") == parameter), None)
+        if not plan:
+            self._coverage.record("File boundary canary", "BLOCKED", "No explicitly provisioned harmless file and expected marker for this endpoint/parameter.", target=safe_target, parameter=parameter)
+            return []
+        proofs = []
+        for role, value in (("baseline", None), ("nonexistent_control", "obsidian-missing-" + secrets.token_hex(12)), ("canary", plan["value"]), ("repeat_canary", plan["value"])):
+            query = pairs if value is None else [(n, value if n == parameter else v) for n, v in pairs]
+            try:
+                response = self._bounded_get(urlunparse(original._replace(query=urlencode(query, doseq=True))), timeout=5)
+            except requests.RequestException:
+                self._coverage.record("File boundary canary", "INCONCLUSIVE", "A required canary/control response was unavailable.", len(proofs), target=safe_target)
+                return []
+            proofs.append({"role": role, "status": response.status_code, "marker_present": plan["marker"] in _probe_text(response),
+                "response_sha256": hashlib.sha256(response.content).hexdigest()})
+        matched = not any(x["marker_present"] for x in proofs[:2]) and all(x["marker_present"] and 200 <= x["status"] < 300 for x in proofs[2:])
+        self._coverage.record("File boundary canary", "COMPLETED", "Two controls and repeated assessor-provisioned canary compared.", 4, target=safe_target, marker_reproduced=matched)
+        if not matched:
+            return []
+        return [Finding(scan_id=scan_id, title="Declared file boundary canary reproduced",
+            description="The assessor declared this synthetic canary outside the allowed file boundary. Its expected marker appeared twice and was absent from two controls. Boundary placement is assessor-supplied; arbitrary file access or real sensitive file exposure was not tested.",
+            source_tool=self.name, tool_version=self.version, target=safe_target, severity=FindingSeverity.MEDIUM,
+            severity_source="Repeatable synthetic canary access; real sensitive file impact not assessed",
+            confidence=FindingConfidence.HIGH, confidence_justification="Two successful marker observations and negative controls; boundary placement requires assessor review.",
+            status=FindingStatus.POTENTIAL, cwe_id="CWE-22", evidence_raw=json.dumps({"verification_method": "declared_file_canary",
+                "parameter": parameter, "observations": proofs, "canary_input": plan["value"], "boundary_declared_by_assessor": True,
+                "reproduction_steps": ["Provision the harmless canary outside the declared allowed file root.", "Replay the recorded canary input twice, then a nonexistent filename; compare expected marker presence."],
+                "limitations": "Canary marker and raw file content are not retained. Assessor must verify the declared boundary."}),
+            evidence_summary="Expected synthetic marker reproduced twice; controls did not contain it.",
+            remediation="Resolve canonical paths and require containment within the allowed file root, or map opaque identifiers to approved files.")]
+
     def _probe_query_parameters(
         self,
         input_points: List[Dict[str, Any]],
@@ -1399,6 +1518,7 @@ class WebAuditorAdapter(BaseToolAdapter):
         """Run capped, non-destructive GET probes on discovered query parameters."""
         findings: List[Finding] = []
         tested = 0
+        seen = set()
         browser_verifier = BrowserXSSVerifier()
         for point in input_points:
             if not read_only_candidate(point["url"]):
@@ -1406,6 +1526,12 @@ class WebAuditorAdapter(BaseToolAdapter):
             original = urlparse(point["url"])
             pairs = parse_qsl(original.query, keep_blank_values=True)
             for parameter in point["names"]:
+                key = (point["url"], parameter)
+                if key in seen:
+                    continue
+                seen.add(key)
+                if self._cancelled():
+                    return findings
                 if tested >= MAX_ACTIVE_PARAMETERS:
                     return findings
                 tested += 1
@@ -1449,9 +1575,11 @@ class WebAuditorAdapter(BaseToolAdapter):
                     ))
                     candidate = findings[-1]
                     candidate.severity = refl_analysis.suggested_severity
-                    candidate.confidence = refl_analysis.suggested_confidence
+                    candidate.confidence = FindingConfidence.MEDIUM
                     candidate.status = FindingStatus.SCANNER_REPORTED if refl_analysis.recommends_alert else FindingStatus.OBSERVED
                     if len(self._browser_checks) < MAX_BROWSER_CANDIDATES:
+                        if self._cancelled():
+                            return findings
                         if progress_callback:
                             progress_callback("Verifying reflected input in an isolated browser…")
                         proof = browser_verifier.verify(point["url"], parameter)
@@ -1476,33 +1604,7 @@ class WebAuditorAdapter(BaseToolAdapter):
                     else:
                         candidate.evidence_summary += " Browser confirmation was not attempted: per-assessment candidate limit reached."
 
-                quote_pairs = [(name, "'" if name == parameter else value) for name, value in pairs]
-                quote_url = urlunparse(original._replace(query=urlencode(quote_pairs, doseq=True)))
-                time.sleep(CRAWL_DELAY_SECONDS)
-                try:
-                    quote_response = self._bounded_get(quote_url, timeout=6)
-                except requests.RequestException:
-                    continue
-                quote_body = _probe_text(quote_response).casefold()
-                matched_engine = next((engine for engine, signatures in SQL_ERROR_SIGNATURES.items() if any(signature in quote_body for signature in signatures)), None)
-                if matched_engine:
-                    findings.append(Finding(
-                        scan_id=scan_id,
-                        title=f"Verbose {matched_engine} error after quote input",
-                        description="A database-specific error signature appeared after a single-quote query input. This may indicate unsafe query handling or verbose error disclosure; it does not prove exploitable SQL injection.",
-                        source_tool=self.name,
-                        tool_version=self.version,
-                        target=safe_target,
-                        severity=FindingSeverity.MEDIUM,
-                        severity_source="Database error signature in response to a non-destructive quote probe",
-                        confidence=FindingConfidence.MEDIUM,
-                        confidence_justification=f"Response matched a known {matched_engine} error signature; no data-modifying SQL payloads were sent.",
-                        status=FindingStatus.SCANNER_REPORTED,
-                        evidence_raw=json.dumps({"parameter": parameter[:80], "database_signature": matched_engine, "response_sha256": hashlib.sha256(quote_response.content).hexdigest()}),
-                        evidence_summary=f"A {matched_engine} error signature was returned; response content and user data were not stored.",
-                        cwe_id="CWE-209",
-                        remediation="Use parameterized queries and return generic client errors while logging detailed exceptions server-side.",
-                    ))
+                findings.extend(self._controlled_sql_error(original, pairs, parameter, scan_id, safe_target))
 
                 # Check for Open Redirect on redirect-like parameters
                 if re.search(r"(?i)^(redirect|redirect_uri|redir|url|next|return|return_to|dest|destination|target|to|uri|link|forward|out)$", parameter):
@@ -1544,52 +1646,8 @@ class WebAuditorAdapter(BaseToolAdapter):
                     self._untested_checks.append({"path": original.path, "parameter": parameter,
                         "outcome": "NOT_TESTED", "reason": "Object ownership needs declared synthetic identities/resources; SSRF needs explicitly approved callback infrastructure. No adjacent-ID or server-loopback probe sent."})
 
-                # Path Traversal probe on file/path parameters
                 if re.search(r"(?i)^(file|filename|filepath|path|doc|document|page|template|view|include|folder|dir|log)$", parameter):
-                    pt_probe = "....//....//....//etc/passwd"
-                    pt_pairs = [(name, pt_probe if name == parameter else value) for name, value in pairs]
-                    pt_url = urlunparse(original._replace(query=urlencode(pt_pairs, doseq=True)))
-                    try:
-                        pt_resp = self._bounded_get(pt_url, timeout=5)
-                        pt_text = _probe_text(pt_resp)
-                        if "root:x:0:0:" in pt_text or "root:*:0:0:" in pt_text:
-                            findings.append(Finding(
-                                scan_id=scan_id,
-                                title=f"Validated Path Traversal (Arbitrary File Read) in Parameter '{parameter}'",
-                                description=f"Supplying directory traversal sequence into parameter '{parameter}' exposed server system file content.",
-                                source_tool=self.name,
-                                tool_version=self.version,
-                                target=safe_target,
-                                severity=FindingSeverity.CRITICAL,
-                                severity_source="Direct observation of system file contents (/etc/passwd) in response body",
-                                confidence=FindingConfidence.CONFIRMED,
-                                confidence_justification="Response contained authentic /etc/passwd root account entry",
-                                status=FindingStatus.VALIDATED,
-                                evidence_raw=json.dumps({"parameter": parameter, "probe": pt_probe, "evidence": "root:x:0:0:[REDACTED]"}),
-                                evidence_summary=f"Parameter '{parameter}' allowed arbitrary file read via traversal sequence.",
-                                cwe_id="CWE-22",
-                                remediation="Validate user-supplied filenames against a strict whitelist or resolve absolute paths and verify they reside within the designated base directory.",
-                            ))
-                        elif any(err in pt_text.lower() for err in ("open_basedir restriction in effect", "failed to open stream", "directory traversal", "illegal path characters")):
-                            findings.append(Finding(
-                                scan_id=scan_id,
-                                title=f"Potential Path Traversal Indicator in Parameter '{parameter}'",
-                                description=f"Parameter '{parameter}' returned a file-system or path-handling error message when tested with traversal sequences.",
-                                source_tool=self.name,
-                                tool_version=self.version,
-                                target=safe_target,
-                                severity=FindingSeverity.MEDIUM,
-                                severity_source="File system error signature in response to traversal probe",
-                                confidence=FindingConfidence.MEDIUM,
-                                confidence_justification="Response contained open_basedir or stream error indicating dynamic file resolution.",
-                                status=FindingStatus.POTENTIAL,
-                                evidence_raw=json.dumps({"parameter": parameter, "probe": pt_probe}),
-                                evidence_summary=f"Path handling error disclosed for parameter '{parameter}'.",
-                                cwe_id="CWE-22",
-                                remediation="Avoid passing user input directly to filesystem APIs; use an indirect mapping table or validated basename.",
-                            ))
-                    except requests.RequestException:
-                        pass
+                    findings.extend(self._verify_file_canary(original, pairs, parameter, scan_id, safe_target))
 
                 # HTTP Header Injection / CRLF probe on redirect parameters
                 if re.search(r"(?i)^(redirect|redirect_uri|redir|url|next|return|return_to|dest|destination|target|to|uri|link|forward|out)$", parameter):
@@ -1615,7 +1673,7 @@ class WebAuditorAdapter(BaseToolAdapter):
                                 confidence=FindingConfidence.CONFIRMED,
                                 confidence_justification="Response headers reflected the injected Set-Cookie directive",
                                 status=FindingStatus.VALIDATED,
-                                evidence_raw=json.dumps({"parameter": parameter, "injected_header": "Set-Cookie: sentinel_crlf_probe=1"}),
+                                evidence_raw=json.dumps({"parameter": parameter, "injected_header": "Set-Cookie: sentinel_crlf_probe=[redacted]"}),
                                 evidence_summary=f"CRLF injection in parameter '{parameter}' successfully injected HTTP response headers.",
                                 cwe_id="CWE-113",
                                 remediation="Strip CR (%0d, \\r) and LF (%0a, \\n) characters from user inputs before incorporating them into HTTP headers or redirect locations.",
@@ -1647,7 +1705,7 @@ class WebAuditorAdapter(BaseToolAdapter):
             with requests.Session() as passive_http:
                 passive_http.trust_env = False
                 resp = passive_http.get(ct_url, timeout=(3, 7), allow_redirects=False, stream=True,
-                                        headers={"User-Agent": "QolamHacker-CT/1.0"})
+                                        headers={"User-Agent": "OBSIDIAN-CT/1.0"})
                 try:
                     raw = resp.raw.read(1_000_001, decode_content=True)
                 finally:
@@ -1869,7 +1927,7 @@ class WebAuditorAdapter(BaseToolAdapter):
             scan_id=scan_id,
             title=f"State-Changing HTML Form Lacks Anti-CSRF Token on {domain}",
             description=(
-                f"Sentinel identified {len(csrf_forms)} state-changing POST form(s) that do not include an anti-CSRF token "
+                f"OBSIDIAN identified {len(csrf_forms)} state-changing POST form(s) that do not include an anti-CSRF token "
                 f"(e.g. csrf, xsrf, _token). In addition, session cookies lack SameSite=Strict protection. "
                 "Attackers can induce authenticated users to submit unauthorized requests to these actions."
             ),
@@ -2055,7 +2113,7 @@ class WebAuditorAdapter(BaseToolAdapter):
             scan_id=scan_id,
             title=f"Web attack surface mapped: {inventory['pages']} same-origin pages",
             description=(
-                f"Sentinel crawled up to {MAX_CRAWL_PAGES} same-origin HTML pages to map the reachable surface. "
+                f"OBSIDIAN crawled up to {MAX_CRAWL_PAGES} same-origin HTML pages to map the reachable surface. "
                 "Only GET requests were sent; forms were inspected but not submitted, and redirects were not followed."
             ),
             source_tool=self.name,
@@ -2100,6 +2158,15 @@ class WebAuditorAdapter(BaseToolAdapter):
         scan_run: ScanRun,
         options: Optional[Dict[str, Any]] = None,
     ) -> Tuple[ScanRun, List[Finding]]:
+        self._cancel_check = (options or {}).get("cancel_check")
+        self._was_cancelled = False
+        self._canary_files = []
+        for item in (options or {}).get("file_canaries", [])[:10]:
+            if (isinstance(item, dict) and item.get("boundary_confirmed") is True
+                    and all(isinstance(item.get(k), str) and 0 < len(item[k]) <= 256 for k in ("endpoint", "parameter", "value", "marker"))
+                    and len(item["marker"]) >= 24 and item["endpoint"].startswith("/")
+                    and not any(x in item["value"].lower() for x in ("/etc/", "windows/", "windows\\", "proc/", "dev/"))):
+                self._canary_files.append(item)
         started = time.monotonic()
         scan_run.start_time = datetime.now(timezone.utc).isoformat()
         valid_target, _validation_message, normalized_target = self.validate_target_url(target)
@@ -2134,7 +2201,7 @@ class WebAuditorAdapter(BaseToolAdapter):
             deep_scan=bool((options or {}).get("deep_scan", False)),
         )
 
-        findings = [Finding.from_dict(sanitize_data(item.to_dict())) for item in findings]
+        findings = distinct_findings([Finding.from_dict(sanitize_data(item.to_dict())) for item in findings])
         graph = getattr(self, "_application_map", None)
         if graph:
             snapshot = graph.snapshot()
@@ -2173,7 +2240,11 @@ class WebAuditorAdapter(BaseToolAdapter):
                 coverage_limitation = "The initial response limited access; protected application coverage was not established."
             else:
                 coverage_limitation = "The initial response was not successful; normal application content coverage was not established."
-        if self._scan_metrics["initial_response_status"] is None or self._scan_metrics["initial_body_failed"]:
+        if self._was_cancelled:
+            scan_run.status = "CANCELLED"
+            scan_run.exit_code = 0
+            scan_run.completion_reason = "Cancelled by the assessor; collected evidence retained, remaining checks untested."
+        elif self._scan_metrics["initial_response_status"] is None or self._scan_metrics["initial_body_failed"]:
             scan_run.status = "FAILED"
             scan_run.exit_code = -1
             scan_run.error_message = (
@@ -2200,6 +2271,16 @@ class WebAuditorAdapter(BaseToolAdapter):
             )
             if limitations:
                 scan_run.completion_reason += " " + " ".join(limitations)
+        self._coverage.record("Native HTTP collection", "FAILED" if scan_run.status == "FAILED" else "INCONCLUSIVE" if scan_run.status in {"PARTIAL", "CANCELLED"} else "COMPLETED", scan_run.completion_reason, scan_run.request_count)
+        self._coverage.record("JavaScript assets and mapping", "COMPLETED" if getattr(self, "_collected_scripts_text", []) else "SKIPPED", "Only collected scripts analyzed; static candidates are not runtime exploit proof.")
+        self._coverage.record("Browser reflected XSS", "COMPLETED" if self._browser_checks and all(x.get("script_execution_verified") for x in self._browser_checks) else "INCONCLUSIVE" if self._browser_checks else "SKIPPED", "Only selected reflected candidates; inspect per-attempt browser evidence.", sum(x.get("request_count", 0) for x in self._browser_checks))
+        for check, reason in (("Stored XSS", "Requires a declared synthetic write/read workflow."), ("Command injection", "No command execution checks are implemented."), ("SSRF callbacks", "Requires an explicitly approved callback receiver; no internal address probes."), ("Business logic and mass assignment", "Requires synthetic reversible workflow and declared expected transitions."), ("Access control and sessions", "Separate declared multi-identity adapter; inspect its session review entry if configured.")):
+            self._coverage.record(check, "BLOCKED", reason)
+        if getattr(self, "_collection_stop", None):
+            self._coverage.record("Target availability", "BLOCKED", self._collection_stop)
+        scan_run.execution_log.append({"operation": "Native request provenance", "requests": getattr(self, "_request_evidence", []),
+            "query_values_retained": False, "redirects_followed": False})
+        scan_run.execution_log.append(self._coverage.snapshot())
         scan_run.execution_log.append({
             "timestamp": scan_run.end_time,
             "scanner": self.name,

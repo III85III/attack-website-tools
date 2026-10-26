@@ -1,0 +1,504 @@
+{
+  "remaining_occurrences": [
+    {
+      "file": "src/adapters/api_review.py",
+      "line": 228,
+      "text": "                query = urlencode([(name, \"sentinel\") for name in item[\"query_names\"]])",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/adapters/browser_xss.py",
+      "line": 160,
+      "text": "        key = \"__sentinel_\" + secrets.token_hex(12)",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/adapters/web_auditor.py",
+      "line": 43,
+      "text": "INPUT_PROBE_MARKER = \"SENTINEL-PROBE\"",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/adapters/web_auditor.py",
+      "line": 1541,
+      "text": "                probe_value = f\"{INPUT_PROBE_MARKER}{time.monotonic_ns()}<sentinel-probe>\"",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/adapters/web_auditor.py",
+      "line": 1611,
+      "text": "                    redir_target = \"https://sentinel.invalid/probe/\" + secrets.token_hex(10)",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/adapters/web_auditor.py",
+      "line": 1655,
+      "text": "                    crlf_probe = f\"sentinel%0d%0aSet-Cookie:%20sentinel_crlf_probe={crlf_nonce}\"",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/adapters/web_auditor.py",
+      "line": 1660,
+      "text": "                        if any(f\"sentinel_crlf_probe={crlf_nonce}\" in v for v in crlf_resp.headers.get(\"Set-Cookie\", \"\").split(\",\")):",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/adapters/web_auditor.py",
+      "line": 1676,
+      "text": "                                evidence_raw=json.dumps({\"parameter\": parameter, \"injected_header\": \"Set-Cookie: sentinel_crlf_probe=[redacted]\"}),",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/adapters/zap_adapter.py",
+      "line": 209,
+      "text": "        context_name = f\"Sentinel_{scan_run.id.replace('-', '')[:20]}\"",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/core/config.py",
+      "line": 17,
+      "text": "    legacy = local_app_data / \"III85III\" / \"Qolam Sentinel\"",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/core/config.py",
+      "line": 18,
+      "text": "    if (portable / \"data\" / \"sentinel.db\").is_file():",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/core/config.py",
+      "line": 20,
+      "text": "    if (legacy / \"data\" / \"sentinel.db\").is_file():",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/core/config.py",
+      "line": 44,
+      "text": "DB_PATH = DATA_DIR / \"sentinel.db\"",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/core/cve_intel.py",
+      "line": 24,
+      "text": "logger = logging.getLogger(\"qolam.cve_intel\")",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/core/scan_logging.py",
+      "line": 35,
+      "text": "        \"schema\": \"qolam-sentinel-scan-log-v1\",",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/reporting/docx_report.py",
+      "line": 548,
+      "text": "        if scan_run and any(name in scan_run.tool_name for name in (\"Web Security Auditor\", \"Sentinel DAST\", \"Sentinel Web\", \"OBSIDIAN DAST\", \"OBSIDIAN Web\")):",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/system_guard/monitor.py",
+      "line": 28,
+      "text": "logger = logging.getLogger(\"qolam.system_guard\")",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/ui/hud.py",
+      "line": 11,
+      "text": "def create_sentinel_icon(size: int = 128) -> QIcon:",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/ui/hud.py",
+      "line": 62,
+      "text": "class SentinelHud(QWidget):",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/ui/hud.py",
+      "line": 170,
+      "text": "create_obsidian_icon = create_sentinel_icon",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/ui/hud.py",
+      "line": 171,
+      "text": "ObsidianHud = SentinelHud",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/voice/voice_assistant.py",
+      "line": 17,
+      "text": "logger = logging.getLogger(\"qolam.voice\")",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/voice/voice_assistant.py",
+      "line": 102,
+      "text": "                env[\"SENTINEL_AUDIO_PATH\"] = tmp_path",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/voice/voice_assistant.py",
+      "line": 107,
+      "text": "                        \"$wm.URL = $env:SENTINEL_AUDIO_PATH; $wm.controls.play(); \"",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/voice/voice_assistant.py",
+      "line": 132,
+      "text": "            env[\"SENTINEL_SPEECH_TEXT\"] = text",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "src/voice/voice_assistant.py",
+      "line": 137,
+      "text": "                    \"[void]$voice.Speak($env:SENTINEL_SPEECH_TEXT)\",",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_browser_xss.py",
+      "line": 147,
+      "text": "        body = value.encode() if value.startswith(\"SENTINEL-PROBE\") else b\"safe\"",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_database.py",
+      "line": 2,
+      "text": "Unit tests for QOLAM SENTINEL SQLite database manager.",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_database.py",
+      "line": 20,
+      "text": "        db_file = Path(tmpdir) / \"test_sentinel.db\"",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_depth_upgrade.py",
+      "line": 66,
+      "text": "                extra={'Access-Control-Allow-Origin':self.headers.get('Origin','') if parsed.path!='/static-cors' else 'https://sentinel.invalid', 'Access-Control-Allow-Credentials':'true'}",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_depth_upgrade.py",
+      "line": 69,
+      "text": "                body=value if parsed.path=='/literal' else 'SENTINEL-PROBE3431' if parsed.path=='/fixed' else re.sub(r'\\{\\{(\\d+)\\*(\\d+)\\}\\}',lambda m:str(int(m[1])*int(m[2])),value)",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_models.py",
+      "line": 2,
+      "text": "Unit tests for QOLAM SENTINEL core models.",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_obsidian.py",
+      "line": 140,
+      "text": "    legacy = local / \"III85III\" / \"Qolam Sentinel\"",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_obsidian.py",
+      "line": 142,
+      "text": "    (legacy / \"data\" / \"sentinel.db\").write_bytes(b\"preserved\")",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_obsidian.py",
+      "line": 145,
+      "text": "    (executable.parent.parent / \"data\" / \"sentinel.db\").write_bytes(b\"portable\")",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_obsidian.py",
+      "line": 147,
+      "text": "    assert (legacy / \"data\" / \"sentinel.db\").read_bytes() == b\"preserved\"",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_obsidian.py",
+      "line": 151,
+      "text": "    db = DatabaseManager(tmp_path / \"sentinel.db\")",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_obsidian.py",
+      "line": 152,
+      "text": "    old = ScanRun(\"Sentinel DAST\", \"https://owned.invalid\", \"\", status=\"COMPLETED\")",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_obsidian.py",
+      "line": 155,
+      "text": "        assert db.get_scan(old.id).tool_name == \"Sentinel DAST\"",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_usage_notice.py",
+      "line": 76,
+      "text": "    monkeypatch.setattr(main.sys, \"argv\", [\"sentinel\"])",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_usage_notice.py",
+      "line": 91,
+      "text": "    monkeypatch.setattr(main.sys, \"argv\", [\"sentinel\"])",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_voice_assistant.py",
+      "line": 44,
+      "text": "    assert seen[\"env\"][\"SENTINEL_SPEECH_TEXT\"] == payload",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_web_auditor.py",
+      "line": 106,
+      "text": "        if value.startswith(\"SENTINEL-PROBE\"):",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_web_auditor.py",
+      "line": 164,
+      "text": "        return _fixture_response(status=302,headers={\"Location\":value}) if value.startswith(\"https://sentinel.invalid/probe/\") else _fixture_response()",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_web_auditor.py",
+      "line": 245,
+      "text": "        found=re.search(r\"sentinel_crlf_probe=([a-f0-9]+)\",value)",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "tests/test_web_auditor.py",
+      "line": 246,
+      "text": "        return _fixture_response(headers={\"Set-Cookie\":\"sentinel_crlf_probe=\"+found[1]}) if found else _fixture_response()",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "line": 1,
+      "text": "# Mirage OBSIDIAN architecture",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "line": 31,
+      "text": "The database is `sentinel.db`. Source runs keep state beside the project; frozen installs",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "docs/DEPTH_COVERAGE_AUDIT.md",
+      "line": 1,
+      "text": "# Qolam_Hacker \u2014 implementation audit",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/DEPTH_COVERAGE_AUDIT.md",
+      "line": 43,
+      "text": "- `StartSentinel.cs`",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.11.0_FA.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.11.0 \u2014 \u06cc\u0627\u062f\u062f\u0627\u0634\u062a \u0646\u0633\u062e\u0647",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.11.0_FA.md",
+      "line": 8,
+      "text": "- \u067e\u0633 \u0627\u0632 \u067e\u0627\u06cc\u0627\u0646\u060c \u0647\u0634\u062f\u0627\u0631\u0647\u0627\u06cc ZAP \u0628\u0647\u200c\u06cc\u0627\u0641\u062a\u0647\u200c\u0647\u0627\u06cc Sentinel \u062a\u0628\u062f\u06cc\u0644 \u0645\u06cc\u200c\u0634\u0648\u0646\u062f \u0648 context \u0645\u0648\u0642\u062a \u062d\u0630\u0641 \u0645\u06cc\u200c\u0634\u0648\u062f.",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.11.1_FA.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.11.1",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.14.0.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.14.0",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.14.1.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.14.1",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.15.0.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.15.0",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.15.0.md",
+      "line": 7,
+      "text": "Explicit failed matcher records and error events never become vulnerabilities. Their count is recorded and the import is marked PARTIAL. Other imported matches remain SCANNER_REPORTED and require independent validation. An absent matcher-status field is accepted for older exports; this does not establish validation. The export schema supplies no scanner version, so Sentinel does not invent one.",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.15.1.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.15.1",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.15.2.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.15.2",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.15.2.md",
+      "line": 9,
+      "text": "The existing background import transaction saves no assessment when validation fails. Error messages explain the unsupported structure. This is validation of Sentinel's supported import subset, not a complete SARIF conformance checker.",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.15.2.md",
+      "line": 13,
+      "text": "Imported numeric security severity contributes to the mapped severity only when it is finite and within 0 through 10. Infinity, NaN, oversized integers, booleans and values outside that range are ignored; the source text severity then applies. An explicit zero score maps to informational, including a SARIF result whose level is error. Positive scores below 4 map to LOW, including 0.1 and 0.9 that ",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.15.3.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.15.3",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.15.4.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.15.4",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.15.5.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.15.5",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.15.5.md",
+      "line": 9,
+      "text": "Only the initial response has this additional status policy. Missing sensitive-file probes commonly return non-success responses; those alone do not imply a failed assessment. Redirects remain disabled, and Sentinel does not store or contact a redirect destination from the Location header.",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.16.0.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.16.0",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.17.0.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.17.0",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.17.0.md",
+      "line": 23,
+      "text": "Primary design references: [OWASP authorization testing](https://owasp.github.io/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/05-Authorization_Testing/02-Testing_for_Bypassing_Authorization_Schema), [OWASP business logic testing](https://wstg.owasp.org/stable/4-Web_Application_Security_Testing/10-Business_Logic_Testing/), and [Invicti's explanation of XSS valida",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.18.0.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.18.0",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.18.0.md",
+      "line": 11,
+      "text": "The new application icon is an original code-drawn obsidian shield with a luminous infinity mark. OPEN SENTINEL.exe in the project root launches this version's portable EXE without a command window. Its C# source is included. Keep the full portable folder and its _internal directory together. Browser shutdown is bounded using only the disposable browser process verified as a child of the scanner; ",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.19.0.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.19.0",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.19.0.md",
+      "line": 15,
+      "text": "Primary references: https://spec.openapis.org/oas/v3.0.4.html and https://www.zaproxy.org/docs/desktop/addons/openapi-support/ . Sentinel implements the explicitly documented subset, not all capabilities of those projects.",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.19.1.md",
+      "line": 1,
+      "text": "# Qolam_Hacker 0.19.1 \u2014 evidence and coverage upgrade",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_0.20.0.md",
+      "line": 5,
+      "text": "- New frozen installations use `%LOCALAPPDATA%\\III85III\\OBSIDIAN`. Existing portable or per-user `Qolam Sentinel` databases are used in place. No history, settings or credentials are copied, reset or renamed.",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/RELEASE_NOTES_FA.md",
+      "line": 1,
+      "text": "# Qolam Sentinel 0.10.0 \u2014 \u06cc\u0627\u062f\u062f\u0627\u0634\u062a \u0646\u0633\u062e\u0647",
+      "category": "historical_record"
+    },
+    {
+      "file": "docs/USER_GUIDE_EN.md",
+      "line": 84,
+      "text": "OBSIDIAN 0.20.0 preserves existing `sentinel.db` history in place. New installs use the OBSIDIAN state folder; an existing legacy state folder takes precedence. Select **Stop Scan** to request cancellation. Native collection stops before the next request; an optional scanner already running may finish its bounded operation first. HTTP 429/503 stops further native collection. See `OBSIDIAN_AUDIT.md",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "docs/USER_GUIDE_FA.md",
+      "line": 5,
+      "text": "1. \u062f\u0631 \u067e\u0648\u0634\u0647\u0654 \u0627\u0635\u0644\u06cc \u067e\u0631\u0648\u0698\u0647\u060c `OPEN SENTINEL.exe` \u0631\u0627 \u0627\u062c\u0631\u0627 \u06a9\u0646\u06cc\u062f\u061b \u062f\u0631 \u0628\u0633\u062a\u0647\u0654 \u0642\u0627\u0628\u0644\u200c\u062d\u0645\u0644\u060c `OBSIDIAN.exe` \u0631\u0627 \u06a9\u0646\u0627\u0631 \u067e\u0648\u0634\u0647\u0654 `_internal` \u0646\u06af\u0647 \u062f\u0627\u0631\u06cc\u062f.",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "docs/USER_GUIDE_FA.md",
+      "line": 57,
+      "text": "OBSIDIAN 0.20.0 preserves existing `sentinel.db` history in place. New installs use the OBSIDIAN state folder; an existing legacy state folder takes precedence. Select **Stop Scan** to request cancellation. Native collection stops before the next request; an optional scanner already running may finish its bounded operation first. HTTP 429/503 stops further native collection. See `OBSIDIAN_AUDIT.md",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "main.py",
+      "line": 89,
+      "text": "        with tempfile.TemporaryDirectory(prefix=\"sentinel-self-check-\") as temporary:",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "main.py",
+      "line": 149,
+      "text": "        with tempfile.TemporaryDirectory(prefix=\"sentinel-session-qa-\") as temporary:",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "main.py",
+      "line": 188,
+      "text": "        with tempfile.TemporaryDirectory(prefix=\"sentinel-api-qa-\") as temporary:",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "StartSentinel.cs",
+      "line": 10,
+      "text": "internal static class StartSentinel",
+      "category": "compatibility_or_internal_identifier"
+    },
+    {
+      "file": "package_release.py",
+      "line": 81,
+      "text": "                         \"StartSentinel.cs\",",
+      "category": "compatibility_or_internal_identifier"
+    }
+  ],
+  "count": 83,
+  "explanations": "docs/OBSIDIAN_AUDIT.md"
+}

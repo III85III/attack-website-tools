@@ -19,9 +19,9 @@ def finding(scan, title):
 def test_assessment_reports_include_child_engines_and_exclude_other_targets(tmp_path):
     db = DatabaseManager(tmp_path / "exports.db")
     try:
-        parent = ScanRun(tool_name="Sentinel DAST", target="https://first.test", raw_command="", status="COMPLETED")
+        parent = ScanRun(tool_name="OBSIDIAN DAST", target="https://first.test", raw_command="", status="COMPLETED")
         child = ScanRun(tool_name="Nmap", target=parent.target, raw_command="", parent_scan_id=parent.id, status="COMPLETED")
-        other = ScanRun(tool_name="Sentinel DAST", target="https://unrelated.test", raw_command="", status="COMPLETED")
+        other = ScanRun(tool_name="OBSIDIAN DAST", target="https://unrelated.test", raw_command="", status="COMPLETED")
         for scan in (parent, child, other):
             db.save_scan(scan)
         a, b, excluded = finding(parent, "Parent evidence"), finding(child, "Child engine evidence"), finding(other, "Unrelated evidence")
@@ -48,7 +48,7 @@ def test_assessment_reports_include_child_engines_and_exclude_other_targets(tmp_
 def test_export_has_no_ui_row_limit_and_does_not_overwrite_previous_file(tmp_path):
     db = DatabaseManager(tmp_path / "all-findings.db")
     try:
-        scan = ScanRun(tool_name="Sentinel", target="https://first.test", raw_command="", status="COMPLETED")
+        scan = ScanRun(tool_name="OBSIDIAN", target="https://first.test", raw_command="", status="COMPLETED")
         db.save_scan(scan)
         for i in range(205):
             db.save_finding(finding(scan, f"Finding {i}"))
@@ -64,7 +64,7 @@ def test_export_has_no_ui_row_limit_and_does_not_overwrite_previous_file(tmp_pat
 def test_running_or_missing_assessment_cannot_be_exported(tmp_path):
     db = DatabaseManager(tmp_path / "pending.db")
     try:
-        scan = ScanRun(tool_name="Sentinel", target="https://first.test", raw_command="")
+        scan = ScanRun(tool_name="OBSIDIAN", target="https://first.test", raw_command="")
         db.save_scan(scan)
         with pytest.raises(ValueError, match="finish"):
             export_assessment(db, scan.id, "json", tmp_path)

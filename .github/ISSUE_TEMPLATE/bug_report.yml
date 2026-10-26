@@ -1,16 +1,16 @@
 name: Bug report
-description: Report a reproducible problem in Qolam_Hacker
+description: Report a reproducible problem in OBSIDIAN
 title: "[Bug] "
 body:
   - type: markdown
     attributes:
       value: |
-        Use private reporting for vulnerabilities in Qolam_Hacker.
+        Use private reporting for vulnerabilities in OBSIDIAN.
         Never include credentials, customer data or unauthorized target details.
   - type: input
     id: version
     attributes:
-      label: Qolam_Hacker version
+      label: OBSIDIAN version
       placeholder: "0.19.1"
     validations:
       required: true

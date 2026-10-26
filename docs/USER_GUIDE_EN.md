@@ -1,15 +1,15 @@
-# Qolam_Hacker — User Guide
+# OBSIDIAN — User Guide
 
-For a ready-to-run Windows installation, download the **Windows-x64 ZIP** from [release 0.19.1](https://github.com/III85III/attack-website-tools/releases/tag/v0.19.1), extract it completely and open `Qolam_Hacker.exe`. Keep `_internal` beside the EXE. You do not need Python. The [README](../README.md) includes checksum verification and source/build commands.
+For a ready-to-run Windows installation, download the **Windows-x64 ZIP** from [release 0.20.0](https://github.com/III85III/attack-website-tools/releases/tag/v0.20.0), extract it completely and open `OBSIDIAN.exe`. Keep `_internal` beside the EXE. You do not need Python. The [README](../README.md) includes checksum verification and source/build commands.
 
 
-Version 0.19.1 uses one primary **Scan Website** button. Optional supplied-account and OpenAPI setup is in the Scan button's right-click menu. Automatic discovery cannot infer credentials, object ownership or business rules; configure those explicitly when needed.
+Version 0.20.0 uses one primary **Scan Website** button. Optional supplied-account and OpenAPI setup is in the Scan button's right-click menu. Automatic discovery cannot infer credentials, object ownership or business rules; configure those explicitly when needed.
 
 ## Scan a website
 
 1. Enter the website URL in **Scanner**.
 2. Select **Scan Website** and confirm that you own the target or have written authorization.
-3. Sentinel runs its bounded web assessment. If Nmap is installed, it checks TCP ports 80, 443, 8080, and 8443. If OWASP ZAP is running locally, it also crawls and actively scans within a temporary context restricted to the entered origin.
+3. OBSIDIAN runs its bounded web assessment. If Nmap is installed, it checks TCP ports 80, 443, 8080, and 8443. If OWASP ZAP is running locally, it also crawls and actively scans within a temporary context restricted to the entered origin.
 4. Review the severity summary and double-click a finding to read its evidence and remediation.
 5. Use **Export Word report** or **Export JSON** below the results. Export runs in the background; select **Open report** when it finishes.
 
@@ -17,7 +17,7 @@ Active scans can affect the target. Use the scanner only within your written aut
 
 ## Documented API assessment
 
-Enter the authorized target URL and choose **Scan Website (right-click) > Import OpenAPI / Swagger JSON**. JSON definitions up to 2 MB are supported for OpenAPI 3.0/3.1 and Swagger 2.0. Sentinel uses the first declared server only when it matches the exact target origin; unresolved references are never downloaded. Definition examples, tokens and default values are not submitted or persisted. Re-import after changing the target origin. Clear API definition removes the setup without deleting reports.
+Enter the authorized target URL and choose **Scan Website (right-click) > Import OpenAPI / Swagger JSON**. JSON definitions up to 2 MB are supported for OpenAPI 3.0/3.1 and Swagger 2.0. OBSIDIAN uses the first declared server only when it matches the exact target origin; unresolved references are never downloaded. Definition examples, tokens and default values are not submitted or persisted. Re-import after changing the target origin. Clear API definition removes the setup without deleting reports.
 
 At scan confirmation, verify that the documented GET routes are read-only. Up to 20 concrete GET operations are requested with synthetic query values; the existing query checks cover up to ten parameters and browser verification up to three candidates within this API engine. These are separate from the website engine's counts and three-candidate budget. Each API request drops cookies received by previous responses. API sessions are anonymous and supplied account sessions are not forwarded. Operation/path server overrides, parameter references, path templates, credential-like query parameters, known state-changing route names, unsupported methods and routes beyond the limit stay NOT_TESTED with a reason.
 
@@ -25,12 +25,12 @@ COLLECTED means the response was received successfully, not that the operation i
 
 ## Optional tools
 
-- **Browser XSS confirmation:** install Microsoft Edge or Google Chrome normally. Sentinel checks its executable signature and uses a fresh anonymous headless context for up to three raw-reflection candidates during a deep scan. No personal profile or supplied session is loaded. A confirmed result includes parameter, benign payload, browser version and matching expected/observed computation. Inconclusive results do not prove safety. Browser GET counts are separate from native HTTP counts. No browser download occurs.
+- **Browser XSS confirmation:** install Microsoft Edge or Google Chrome normally. OBSIDIAN checks its executable signature and uses a fresh anonymous headless context for up to three raw-reflection candidates during a deep scan. No personal profile or supplied session is loaded. A confirmed result includes parameter, benign payload, browser version and matching expected/observed computation. Inconclusive results do not prove safety. Browser GET counts are separate from native HTTP counts. No browser download occurs.
 
 - **OWASP ZAP:** install separately and run its API locally at `http://127.0.0.1:8080`.
 - **Nmap:** install separately and ensure `nmap` is available on `PATH`.
 - **TShark:** install Wireshark to inspect additional capture formats.
-- **Other security CLIs:** the Tool Integrations page reports which supported tools are detected. Sentinel does not launch these tools automatically. Import compatible SARIF, Nuclei JSON/JSONL, JSON, or XML reports from the Findings page.
+- **Other security CLIs:** the Tool Integrations page reports which supported tools are detected. OBSIDIAN does not launch these tools automatically. Import compatible SARIF, Nuclei JSON/JSONL, JSON, or XML reports from the Findings page.
 - **Direct actions:** use **Import Tool Report** on Tool Integrations to import supported SARIF, Nuclei JSON/JSONL, JSON, or Nmap-compatible XML files. Select an archive row and choose **Open Selected Archive Folder** to open its local folder.
 
 ## Findings and reports
@@ -41,11 +41,11 @@ The infinity animation runs only during a visible scan. Actual request count, HT
 
 ## Local data
 
-New Windows installs store data under `%LOCALAPPDATA%\III85III\Qolam Sentinel`. The application does not send telemetry to Sentinel servers. A scan sends requests from this computer to the entered target. Online voice output sends the selected summary to Microsoft Edge TTS; local Windows SAPI remains available.
+New Windows installs store data under `%LOCALAPPDATA%\III85III\OBSIDIAN`. The application does not send telemetry to OBSIDIAN servers. A scan sends requests from this computer to the entered target. Online voice output sends the selected summary to Microsoft Edge TTS; local Windows SAPI remains available.
 
 ## Import Nuclei reports
 
-Choose a native Nuclei JSON or JSONL export. Matches retain source severity and are marked scanner-reported. Explicit failed matcher/error records are excluded and recorded as a partial import. Import sends zero network requests; it does not execute templates or validate matches. The execution log includes the source SHA-256 and record counts. Files are limited to 50 MB and 2,000 records (or 2,000 normalized Nmap observations/Hydra service groups). Split larger reports; oversized imports are rejected without silent truncation. Parsing and saving run in the background. The import button stays disabled until completion; the inline message shows the outcome. If parsing or storage fails, no partial imported assessment is saved. Finish active imports before closing Sentinel.
+Choose a native Nuclei JSON or JSONL export. Matches retain source severity and are marked scanner-reported. Explicit failed matcher/error records are excluded and recorded as a partial import. Import sends zero network requests; it does not execute templates or validate matches. The execution log includes the source SHA-256 and record counts. Files are limited to 50 MB and 2,000 records (or 2,000 normalized Nmap observations/Hydra service groups). Split larger reports; oversized imports are rejected without silent truncation. Parsing and saving run in the background. The import button stays disabled until completion; the inline message shows the outcome. If parsing or storage fails, no partial imported assessment is saved. Finish active imports before closing OBSIDIAN.
 
 ## Invalid imported records
 
@@ -53,7 +53,7 @@ Generic JSON collections must contain objects with a nonempty text title, name, 
 
 ## Check tool availability
 
-Open Tool Integrations to start background availability checks. The status line names the current check. Refresh stays disabled until completion, and repeated requests do not launch more probes. A failed detector is marked EXECUTION_FAILED; remaining checks continue. If results cannot be saved, the page shows a warning. Unverified voice synthesis and cache freshness do not claim readiness. Wait for health checks to finish before closing Sentinel.
+Open Tool Integrations to start background availability checks. The status line names the current check. Refresh stays disabled until completion, and repeated requests do not launch more probes. A failed detector is marked EXECUTION_FAILED; remaining checks continue. If results cannot be saved, the page shows a warning. Unverified voice synthesis and cache freshness do not claim readiness. Wait for health checks to finish before closing OBSIDIAN.
 
 ## Incomplete response collection
 
@@ -79,3 +79,6 @@ Read the responsible-use notice and tick its acknowledgement before continuing. 
 8. Clear session setup when finished. No raw Cookie/Bearer value, identifying text or response body is written to the report. Session credentials are never forwarded to optional external engines.
 
 The dedicated release diagnostic is loopback-only and uses synthetic local plan files for QA; it is separate from the public-website GUI workflow.
+
+
+OBSIDIAN 0.20.0 preserves existing `sentinel.db` history in place. New installs use the OBSIDIAN state folder; an existing legacy state folder takes precedence. Select **Stop Scan** to request cancellation. Native collection stops before the next request; an optional scanner already running may finish its bounded operation first. HTTP 429/503 stops further native collection. See `OBSIDIAN_AUDIT.md` for verified capabilities and limitations.

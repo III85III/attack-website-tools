@@ -1,6 +1,6 @@
-# Third-Party Notices — Qolam Sentinel 0.19.0
+# Third-Party Notices — OBSIDIAN 0.19.0
 
-Qolam Sentinel itself is licensed under GNU GPL-3.0-only; see `LICENSE` and `COPYRIGHT`. Bundled libraries retain their own licenses. License texts collected from the pinned package artifacts are provided in `THIRD_PARTY_LICENSES/` in the portable distribution.
+OBSIDIAN itself is licensed under GNU GPL-3.0-only; see `LICENSE` and `COPYRIGHT`. Bundled libraries retain their own licenses. License texts collected from the pinned package artifacts are provided in `THIRD_PARTY_LICENSES/` in the portable distribution.
 
 | Component | Version | License | Use |
 |---|---:|---|---|

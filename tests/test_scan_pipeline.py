@@ -47,7 +47,7 @@ def local_http_target():
 
 def test_live_local_http_pipeline_records_real_requests_and_responses(local_http_target):
     adapter = WebAuditorAdapter()
-    scan = ScanRun(tool_name="Sentinel DAST", target=local_http_target, raw_command="")
+    scan = ScanRun(tool_name="OBSIDIAN DAST", target=local_http_target, raw_command="")
 
     result, findings = adapter.run_scan(local_http_target, scan)
 
@@ -64,7 +64,7 @@ def test_live_local_http_pipeline_records_real_requests_and_responses(local_http
 def test_invalid_target_fails_before_network_activity(monkeypatch):
     adapter = WebAuditorAdapter()
     monkeypatch.setattr(adapter.session, "get", lambda *_a, **_kw: pytest.fail("network request must not run"))
-    scan = ScanRun(tool_name="Sentinel DAST", target="file:///etc/passwd", raw_command="")
+    scan = ScanRun(tool_name="OBSIDIAN DAST", target="file:///etc/passwd", raw_command="")
 
     result, _findings = adapter.run_scan("file:///etc/passwd", scan)
 
@@ -75,7 +75,7 @@ def test_invalid_target_fails_before_network_activity(monkeypatch):
 
 def test_connection_failure_is_not_an_empty_success():
     adapter = WebAuditorAdapter()
-    scan = ScanRun(tool_name="Sentinel DAST", target="http://127.0.0.1:1/", raw_command="")
+    scan = ScanRun(tool_name="OBSIDIAN DAST", target="http://127.0.0.1:1/", raw_command="")
 
     result, findings = adapter.run_scan(scan.target, scan)
 
@@ -89,7 +89,7 @@ def test_connection_failure_is_not_an_empty_success():
 
 def test_database_and_json_export_preserve_the_same_findings(local_http_target, tmp_path):
     adapter = WebAuditorAdapter()
-    scan = ScanRun(tool_name="Sentinel DAST", target=local_http_target, raw_command="")
+    scan = ScanRun(tool_name="OBSIDIAN DAST", target=local_http_target, raw_command="")
     result, findings = adapter.run_scan(local_http_target, scan)
     db = DatabaseManager(tmp_path / "pipeline.db")
     try:

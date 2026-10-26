@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from src.core.database import DatabaseManager
+from src.core.evidence import distinct_findings
 from src.reporting.docx_report import HTMLExporter, JSONExporter, MarkdownExporter, ReportGenerator
 
 
@@ -26,7 +27,7 @@ def export_assessment(
         raise ValueError("Choose Word (docx), HTML, Markdown, or JSON report format.")
     # UI tables may cap rows for responsiveness. Reports must contain every
     # finding from this assessment, including its optional engine runs.
-    findings = db.list_findings(scan_id=scan.id, limit=None)
+    findings = distinct_findings(db.list_findings(scan_id=scan.id, limit=None))
     scan.findings_count = len(findings)
     tools = db.list_tool_health()
     if fmt == "docx":

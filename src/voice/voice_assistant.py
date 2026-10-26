@@ -1,5 +1,5 @@
 """
-III85III QOLAM SENTINEL — Persian Voice Assistant
+III85III OBSIDIAN — Persian Voice Assistant
 Generates authentic spoken Persian summaries using edge-tts or Windows speech engine.
 """
 from __future__ import annotations

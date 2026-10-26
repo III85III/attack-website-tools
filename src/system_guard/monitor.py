@@ -1,5 +1,5 @@
 """
-III85III QOLAM SENTINEL — System Guard Monitor
+III85III OBSIDIAN — System Guard Monitor
 Resource-conscious, genuine Windows process, network socket, and Defender telemetry service.
 """
 from __future__ import annotations

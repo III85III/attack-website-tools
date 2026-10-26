@@ -18,11 +18,11 @@ def build() -> Path | None:
         "PyInstaller",
         "--noconfirm",
         "--clean",
-        "--name=Qolam_Hacker",
+        "--name=OBSIDIAN",
         "--onedir",
         "--noupx",
         "--windowed",
-        f"--icon={BASE_DIR / 'assets' / 'sentinel.ico'}",
+        f"--icon={BASE_DIR / 'assets' / 'obsidian.ico'}",
         f"--paths={BASE_DIR}",
         f"--runtime-hook={BASE_DIR / 'pyi_rth_qt6_dll.py'}",
         f"--add-data={BASE_DIR / 'docs' / 'USER_GUIDE_FA.md'};docs",
@@ -42,7 +42,7 @@ def build() -> Path | None:
         print(f"[-] PyInstaller failed with exit code {result.returncode}")
         return None
 
-    app_dir = BASE_DIR / "dist" / "Qolam_Hacker"
+    app_dir = BASE_DIR / "dist" / "OBSIDIAN"
     internal = app_dir / "_internal"
     qt_bin = internal / "PyQt6" / "Qt6" / "bin"
 
@@ -57,8 +57,8 @@ def build() -> Path | None:
         for runtime in qt_bin.glob(pattern):
             shutil.copy2(runtime, internal / runtime.name)
 
-    print(f"[+] Build succeeded: {app_dir / 'Qolam_Hacker.exe'}")
-    return app_dir / "Qolam_Hacker.exe"
+    print(f"[+] Build succeeded: {app_dir / 'OBSIDIAN.exe'}")
+    return app_dir / "OBSIDIAN.exe"
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 """
-III85III QOLAM SENTINEL — CVE Intelligence & Correlation Engine
+III85III OBSIDIAN — CVE Intelligence & Correlation Engine
 Correlates identified component versions with authentic CISA KEV and NVD vulnerability databases.
 """
 from __future__ import annotations

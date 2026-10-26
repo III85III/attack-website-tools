@@ -85,10 +85,10 @@ def test_database_crud_operations():
 def test_finalizing_scan_preserves_finding_association(tmp_path):
     db = DatabaseManager(tmp_path / "finalize.db")
     try:
-        scan = ScanRun(tool_name="Sentinel", target="http://127.0.0.1", raw_command="")
+        scan = ScanRun(tool_name="OBSIDIAN", target="http://127.0.0.1", raw_command="")
         db.save_scan(scan)
         finding = Finding(
-            scan_id=scan.id, title="Evidence", description="Observed response", source_tool="Sentinel",
+            scan_id=scan.id, title="Evidence", description="Observed response", source_tool="OBSIDIAN",
             target=scan.target, severity=FindingSeverity.LOW, severity_source="HTTP",
             confidence=FindingConfidence.HIGH, confidence_justification="Response", evidence_raw="HTTP 200",
         )

@@ -8,7 +8,7 @@ from src.reporting.docx_report import JSONExporter, ReportGenerator
 
 
 def test_word_and_json_redact_every_finding_field_without_changing_source(tmp_path):
-    scan = ScanRun(tool_name="Sentinel DAST", target="https://owned.test/?token=target-secret", raw_command="")
+    scan = ScanRun(tool_name="OBSIDIAN DAST", target="https://owned.test/?token=target-secret", raw_command="")
     item = Finding(title="Disclosure", source_tool="ZAP", target=scan.target,
                    description="Authorization: Basic BASIC_SECRET\nCookie: sid=COOKIE_ONE; arbitrary=COOKIE_TWO",
                    severity=FindingSeverity.HIGH, severity_source="Fixture",

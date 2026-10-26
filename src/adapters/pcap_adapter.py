@@ -1,5 +1,5 @@
 """
-III85III QOLAM SENTINEL — PCAP & Network Traffic Adapter
+III85III OBSIDIAN — PCAP & Network Traffic Adapter
 Analyzes PCAP/PCAPNG files via TShark or native Python fallback, redacting sensitive payload data.
 """
 from __future__ import annotations

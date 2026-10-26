@@ -2,14 +2,14 @@ from PyQt6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QLabel, QMessa
 from src.core.config import APP_VERSION, DATA_DIR
 from src.core.usage_notice import NOTICE_TEXT, notice_accepted, save_acknowledgement
 from src.ui.theme import DARK_TACTICAL_THEME
-from src.ui.hud import create_sentinel_icon
+from src.ui.hud import create_obsidian_icon
 
 
 class UsageNoticeDialog(QDialog):
     def __init__(self, parent=None, review_only=False):
         super().__init__(parent)
-        self.setWindowTitle("Qolam Sentinel — Responsible Use")
-        self.setWindowIcon(create_sentinel_icon())
+        self.setWindowTitle("OBSIDIAN — Responsible Use")
+        self.setWindowIcon(create_obsidian_icon())
         self.setStyleSheet(DARK_TACTICAL_THEME)
         self.resize(730, 650)
         layout = QVBoxLayout(self)

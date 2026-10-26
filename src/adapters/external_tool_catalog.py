@@ -12,72 +12,72 @@ _OPTIONAL_TOOLS: Tuple[Tuple[str, Tuple[str, ...], str], ...] = (
     (
         "Nuclei",
         ("nuclei",),
-        "CLI availability only; Sentinel does not execute templates automatically. Import native Nuclei JSON/JSONL or SARIF results.",
+        "CLI availability only; OBSIDIAN does not execute templates automatically. Import native Nuclei JSON/JSONL or SARIF results.",
     ),
     (
         "Nikto",
         ("nikto", "nikto.pl"),
-        "CLI availability only; not launched by Sentinel. Import supported scanner reports.",
+        "CLI availability only; not launched by OBSIDIAN. Import supported scanner reports.",
     ),
     (
         "SQLmap",
         ("sqlmap", "sqlmap.py"),
-        "CLI availability only; automated injection and data-access actions are not launched by Sentinel.",
+        "CLI availability only; automated injection and data-access actions are not launched by OBSIDIAN.",
     ),
     (
         "FFUF",
         ("ffuf",),
-        "CLI availability only; content discovery is not launched by Sentinel.",
+        "CLI availability only; content discovery is not launched by OBSIDIAN.",
     ),
     (
         "Gobuster",
         ("gobuster",),
-        "CLI availability only; content and DNS enumeration are not launched by Sentinel.",
+        "CLI availability only; content and DNS enumeration are not launched by OBSIDIAN.",
     ),
     (
         "WhatWeb",
         ("whatweb",),
-        "CLI availability only; not launched by Sentinel. Import supported scanner reports.",
+        "CLI availability only; not launched by OBSIDIAN. Import supported scanner reports.",
     ),
     (
         "WPScan",
         ("wpscan",),
-        "CLI availability only; not launched by Sentinel. Import supported scanner reports.",
+        "CLI availability only; not launched by OBSIDIAN. Import supported scanner reports.",
     ),
     (
         "HTTPX",
         ("httpx",),
-        "CLI availability only; not launched by Sentinel. Use reports from authorized assessments.",
+        "CLI availability only; not launched by OBSIDIAN. Use reports from authorized assessments.",
     ),
     (
         "Subfinder",
         ("subfinder",),
-        "CLI availability only; subdomain enumeration is not launched by Sentinel.",
+        "CLI availability only; subdomain enumeration is not launched by OBSIDIAN.",
     ),
     (
         "Amass",
         ("amass",),
-        "CLI availability only; asset discovery is not launched by Sentinel.",
+        "CLI availability only; asset discovery is not launched by OBSIDIAN.",
     ),
     (
         "testssl.sh",
         ("testssl", "testssl.sh"),
-        "CLI availability only; TLS checks are not launched by Sentinel.",
+        "CLI availability only; TLS checks are not launched by OBSIDIAN.",
     ),
     (
         "Shannon",
         ("shannon",),
-        "Autonomous exploit-mode scans are not launched by Sentinel; import SARIF 2.1 or supported JSON reports.",
+        "Autonomous exploit-mode scans are not launched by OBSIDIAN; import SARIF 2.1 or supported JSON reports.",
     ),
     (
         "Sn1per",
         ("sniper", "sn1per"),
-        "Full CLI is Linux/Kali-oriented; Sentinel imports Nmap-compatible XML exports and does not launch mass scans.",
+        "Full CLI is Linux/Kali-oriented; OBSIDIAN imports Nmap-compatible XML exports and does not launch mass scans.",
     ),
     (
         "Strix",
         ("strix",),
-        "Autonomous agent scans are not launched by Sentinel; import SARIF or supported JSON reports.",
+        "Autonomous agent scans are not launched by OBSIDIAN; import SARIF or supported JSON reports.",
     ),
     (
         "THC Hydra",
@@ -88,9 +88,9 @@ _OPTIONAL_TOOLS: Tuple[Tuple[str, Tuple[str, ...], str], ...] = (
 
 
 _USER_SOURCE_BUNDLES: Tuple[Tuple[str, str, str], ...] = (
-    ("Shannon", "shannon-*.zip", "Autonomous AI web pentester source; not launched by Sentinel."),
-    ("Sn1per", "Sn1per-*.zip", "Attack-surface toolkit source; Linux/Kali oriented and not launched by Sentinel."),
-    ("Strix", "strix-*.zip", "Autonomous AI pentester source; not launched by Sentinel."),
+    ("Shannon", "shannon-*.zip", "Autonomous AI web pentester source; not launched by OBSIDIAN."),
+    ("Sn1per", "Sn1per-*.zip", "Attack-surface toolkit source; Linux/Kali oriented and not launched by OBSIDIAN."),
+    ("Strix", "strix-*.zip", "Autonomous AI pentester source; not launched by OBSIDIAN."),
     ("THC Hydra", "thc-hydra*.zip", "Credential-auditing source; credential-attack execution is disabled."),
     ("Wireshark", "wireshark*.zip", "Network protocol analyzer source; use a separately installed Wireshark/TShark build."),
 )

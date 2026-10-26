@@ -2,4 +2,4 @@ blank_issues_enabled: false
 contact_links:
   - name: Report a vulnerability privately
     url: https://github.com/III85III/attack-website-tools/security/advisories/new
-    about: Report a vulnerability in Sentinel without exposing customer data.
+    about: Report a vulnerability in OBSIDIAN without exposing customer data.

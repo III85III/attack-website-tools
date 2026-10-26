@@ -1,8 +1,8 @@
-# راهنمای کاربر Qolam Sentinel
+# راهنمای کاربر OBSIDIAN
 
 ## شروع سریع
 
-1. در پوشهٔ اصلی پروژه، `OPEN SENTINEL.exe` را اجرا کنید؛ در بستهٔ قابل‌حمل، `Qolam_Hacker.exe` را کنار پوشهٔ `_internal` نگه دارید.
+1. در پوشهٔ اصلی پروژه، `OPEN SENTINEL.exe` را اجرا کنید؛ در بستهٔ قابل‌حمل، `OBSIDIAN.exe` را کنار پوشهٔ `_internal` نگه دارید.
 2. URL پایهٔ یک وب‌سایت مجاز را وارد کنید؛ نمونه: `https://example.org/`.
 3. در صفحهٔ **Scanner**، گزینهٔ **Scan Website** را بزنید.
 4. در پنجرهٔ بعدی هدف، محدوده و مجوز را کنترل و تأیید کنید.
@@ -39,11 +39,11 @@
 
 پیش‌فرض گفتار، Windows SAPI محلی است. اگر در پنجرهٔ گفتار گزینهٔ آنلاین را انتخاب کنید، متن خلاصه و جزئیات یافته‌ها برای Microsoft Edge TTS ارسال می‌شود. گزینهٔ لغو یا گفتار محلی را انتخاب کنید تا متن به این سرویس فرستاده نشود. گزارش‌ها و پایگاه داده روی همین رایانه می‌مانند.
 
-دادهٔ جدید در `%LOCALAPPDATA%\III85III\Qolam Sentinel` نگهداری می‌شود؛ نسخه‌های ارتقایافته، پایگاه دادهٔ قدیمی پروژه را در صورت وجود حفظ می‌کنند.
+دادهٔ جدید در `%LOCALAPPDATA%\III85III\OBSIDIAN` نگهداری می‌شود؛ نسخه‌های ارتقایافته، پایگاه دادهٔ قدیمی پروژه را در صورت وجود حفظ می‌کنند.
 
 ## ابزارهای اختیاری
 
-Nmap، Wireshark/TShark و OWASP ZAP همراه برنامه نصب نمی‌شوند. برای پروفایل «OWASP ZAP فعال»، ZAP را جداگانه نصب و API محلی آن را روی `127.0.0.1:8080` اجرا کنید. این پروفایل یک context موقت محدود به origin واردشده می‌سازد، صفحه‌ها را می‌خزد و اسکن فعال ZAP را اجرا می‌کند. تیک مجوز و تأیید جداگانه لازم است؛ اسکن فعال payload آزمایشی می‌فرستد و ممکن است روی سرویس اثر بگذارد. فقط با مجوز صریح اجرا کنید. Sentinel پس از پایان اسکن context موقت را پاک می‌کند.
+Nmap، Wireshark/TShark و OWASP ZAP همراه برنامه نصب نمی‌شوند. برای پروفایل «OWASP ZAP فعال»، ZAP را جداگانه نصب و API محلی آن را روی `127.0.0.1:8080` اجرا کنید. این پروفایل یک context موقت محدود به origin واردشده می‌سازد، صفحه‌ها را می‌خزد و اسکن فعال ZAP را اجرا می‌کند. تیک مجوز و تأیید جداگانه لازم است؛ اسکن فعال payload آزمایشی می‌فرستد و ممکن است روی سرویس اثر بگذارد. فقط با مجوز صریح اجرا کنید. OBSIDIAN پس از پایان اسکن context موقت را پاک می‌کند.
 
 ## عیب‌یابی
 
@@ -52,3 +52,6 @@ Nmap، Wireshark/TShark و OWASP ZAP همراه برنامه نصب نمی‌ش�
 - **فایل Word ساخته نمی‌شود:** فضای دیسک و دسترسی نوشتن به پوشهٔ گزارش‌ها را بررسی کنید.
 - **برنامه در پوشهٔ محافظت‌شده نصب شده:** نسخهٔ جدید داده را در LocalAppData می‌نویسد؛ نسخهٔ قدیمی را پس از پشتیبان‌گیری از دیتابیس ارتقا دهید.
 - **گزارش اسکن ناقص است:** خطاهای اتصال و وضعیت جمع‌آوری را ببینید و آن را به‌عنوان نتیجهٔ clean تفسیر نکنید.
+
+
+OBSIDIAN 0.20.0 preserves existing `sentinel.db` history in place. New installs use the OBSIDIAN state folder; an existing legacy state folder takes precedence. Select **Stop Scan** to request cancellation. Native collection stops before the next request; an optional scanner already running may finish its bounded operation first. HTTP 429/503 stops further native collection. See `OBSIDIAN_AUDIT.md` for verified capabilities and limitations.

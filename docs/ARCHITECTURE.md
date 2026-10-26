@@ -1,4 +1,4 @@
-# Mirage Sentinel architecture
+# Mirage OBSIDIAN architecture
 
 ## Assessment flow
 

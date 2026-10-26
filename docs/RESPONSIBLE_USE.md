@@ -1,8 +1,8 @@
-# Qolam Sentinel responsible use notice
+# OBSIDIAN responsible use notice
 
 AUTHORIZED WEBSITE SECURITY ASSESSMENTS
 
-Qolam Sentinel is intended for security assessments of websites you own or have explicit authorization to test. It runs from your computer against the target you choose, including authorized public websites.
+OBSIDIAN is intended for security assessments of websites you own or have explicit authorization to test. It runs from your computer against the target you choose, including authorized public websites.
 
 YOUR RESPONSIBILITY
 You are responsible for obtaining authorization, choosing the correct targets, staying within the agreed scope and test window, complying with applicable law, and the decisions and actions you initiate. Active tests may affect availability, generate alerts or expose sensitive information. Protect collected data and review findings before acting on them.

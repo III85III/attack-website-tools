@@ -1,5 +1,5 @@
 """
-III85III QOLAM SENTINEL — Dark Tactical Theme Stylesheet
+III85III OBSIDIAN — Dark Tactical Theme Stylesheet
 High-contrast, professional cybersecurity theme with dark slate and cyan accents.
 """
 

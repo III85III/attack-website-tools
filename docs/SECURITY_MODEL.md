@@ -2,7 +2,7 @@
 
 ## Product boundary
 
-Qolam Sentinel is a local Windows desktop assessment workbench. It is not a hosted scanner, a vulnerability-management service, or a substitute for an authorized professional penetration test. The user is responsible for target ownership, written authorization, and the impact of scans.
+OBSIDIAN is a local Windows desktop assessment workbench. It is not a hosted scanner, a vulnerability-management service, or a substitute for an authorized professional penetration test. The user is responsible for target ownership, written authorization, and the impact of scans.
 
 ## Network behavior
 
@@ -14,11 +14,11 @@ Qolam Sentinel is a local Windows desktop assessment workbench. It is not a host
 - Nmap is optional. The unified scanner invokes it only after the per-target authorization confirmation and limits its TCP Connect scan to ports 80, 443, 8080, and 8443 on the entered hostname/IP.
 - CISA KEV updating is not performed on normal startup. It is a network operation if invoked.
 - Online speech is opt-in. The text selected for speech is sent to Microsoft Edge TTS only after a confirmation dialog; Windows SAPI is the default local option.
-- There is no Sentinel telemetry endpoint or background cloud scanner.
+- There is no OBSIDIAN telemetry endpoint or background cloud scanner.
 
 ## Local data
 
-Scan records are stored in SQLite and reports are written locally. New frozen installs use `%LOCALAPPDATA%\III85III\Qolam Sentinel`. Raw HTTP response bodies are not stored as full pages; findings may include response headers, paths, banners, imported evidence, and target URLs. Treat generated reports and imported scanner files as sensitive.
+Scan records are stored in SQLite and reports are written locally. New frozen installs use `%LOCALAPPDATA%\III85III\OBSIDIAN`. Raw HTTP response bodies are not stored as full pages; findings may include response headers, paths, banners, imported evidence, and target URLs. Treat generated reports and imported scanner files as sensitive.
 
 ## Trust boundaries and input handling
 
@@ -42,7 +42,7 @@ The built-in deep profile is bounded DAST, not a full penetration test. It canno
 
 Only fixed system Edge/Chrome installation paths with a valid vendor Authenticode signature are launched. Playwright uses a temporary anonymous context, Chromium sandbox enabled, certificate verification enabled, service workers blocked, no granted permissions and downloads disabled. Browser contexts and processes are closed after each candidate. Requests are limited to 20 GET attempts per candidate and the exact original origin; redirects, child-frame navigation, additional main-frame navigation, off-origin requests, WebSockets and mutations are blocked. There is a navigation/proof time window; failure remains inconclusive. The browser network stack is distinct from requests: its requests are counted separately and browser response bodies do not use the native HTTP collector's 1 MB analysis cap. Origin routing is an application constraint, not an operating-system network sandbox. Third-party assets being blocked can reduce coverage. Only the injected parameter can set the random computed proof; the evaluator reads it without initializing it. No screenshot, response body, cookies or existing query values are retained in proof records.
 
-## Reporting a vulnerability in Sentinel
+## Reporting a vulnerability in OBSIDIAN
 
 Do not include real target credentials, customer data, or live exploit payloads in a public issue. Until a maintainer contact is published, keep reports private to the project owner.
 

@@ -1,5 +1,5 @@
 """
-III85III QOLAM SENTINEL — Core Data Models
+III85III OBSIDIAN — Core Data Models
 Strict anti-fabrication models for security findings, scan sessions, and system telemetry.
 """
 from __future__ import annotations
